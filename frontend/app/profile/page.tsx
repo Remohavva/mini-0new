@@ -1,0 +1,243 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { apiFetch } from "@/lib/api";
+import Navbar from "@/components/Navbar";
+import Image from "next/image";
+import Link from "next/link";
+
+interface Profile {
+  id: string;
+  email: string;
+  full_name: string;
+  user_type: string;
+  college_or_company: string;
+  phone?: string;
+  avatar_url?: string;
+}
+
+interface Ride {
+  id: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  available_seats: number;
+  status: string;
+  bike_model?: string;
+}
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [myRides, setMyRides] = useState<Ride[]>([]);
+  const [form, setForm] = useState({ full_name: "", phone: "", college_or_company: "" });
+  const [editing, setEditing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) { router.push("/auth/login"); return; }
+
+      // Build profile from Supabase user metadata as fallback
+      const meta = data.user.user_metadata;
+      const fallback: Profile = {
+        id: data.user.id,
+        email: data.user.email ?? "",
+        full_name: meta?.full_name ?? "User",
+        user_type: meta?.user_type ?? "student",
+        college_or_company: meta?.college_or_company ?? "",
+        phone: meta?.phone ?? "",
+        avatar_url: meta?.avatar_url ?? "",
+      };
+
+      try {
+        const p = await apiFetch<Profile>("/users/me");
+        setProfile(p);
+        setForm({ full_name: p.full_name, phone: p.phone ?? "", college_or_company: p.college_or_company });
+        apiFetch<Ride[]>("/rides/my").then(setMyRides).catch(() => {});
+      } catch {
+        setProfile(fallback);
+        setForm({ full_name: fallback.full_name, phone: fallback.phone ?? "", college_or_company: fallback.college_or_company });
+        setError("Could not reach backend — showing local profile data.");
+      }
+    });
+  }, [router]);
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+    setUploading(true);
+    const ext = file.name.split(".").pop();
+    const path = `${profile.id}/avatar.${ext}`;
+    const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (error) { setMsg("Upload failed: " + error.message); setUploading(false); return; }
+    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+    await apiFetch("/users/me", { method: "PUT", body: JSON.stringify({ avatar_url: data.publicUrl }) });
+    setProfile({ ...profile, avatar_url: data.publicUrl });
+    setMsg("Avatar updated.");
+    setUploading(false);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setMsg("");
+    try {
+      const updated = await apiFetch<Profile>("/users/me", {
+        method: "PUT",
+        body: JSON.stringify(form),
+      });
+      setProfile(updated);
+      setEditing(false);
+      setMsg("Profile updated.");
+    } catch (err: unknown) {
+      setMsg(err instanceof Error ? err.message : "Update failed");
+    }
+    setSaving(false);
+  }
+
+  if (!profile) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+
+  const initials = profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+
+  return (
+    <div>
+      <Navbar />
+      <main className="max-w-2xl mx-auto px-4 py-10">
+        <div className="bg-white rounded-2xl shadow p-8">
+
+          {/* Avatar */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="relative group cursor-pointer" onClick={() => fileRef.current?.click()}>
+              {profile.avatar_url ? (
+                <Image
+                  src={profile.avatar_url}
+                  alt="Avatar"
+                  width={96}
+                  height={96}
+                  className="w-24 h-24 rounded-full object-cover ring-4 ring-green-100"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-green-600 flex items-center justify-center text-white text-3xl font-bold ring-4 ring-green-100">
+                  {initials}
+                </div>
+              )}
+              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                <span className="text-white text-xs font-medium">{uploading ? "Uploading..." : "Change"}</span>
+              </div>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+            <p className="text-xs text-gray-400 mt-2">Click avatar to upload a new photo</p>
+          </div>
+
+          {/* Info */}
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">{profile.full_name}</h2>
+              <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                profile.user_type === "student" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+              }`}>
+                {profile.user_type === "student" ? "🎓 Student" : "💼 Corporate"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 text-sm">
+              <div className="flex items-center gap-3 text-gray-600">
+                <span className="text-lg">✉️</span>
+                <span>{profile.email}</span>
+              </div>
+              <div className="flex items-center gap-3 text-gray-600">
+                <span className="text-lg">{profile.user_type === "student" ? "🏫" : "🏢"}</span>
+                {editing ? (
+                  <input value={form.college_or_company} onChange={(e) => setForm({ ...form, college_or_company: e.target.value })}
+                    className="flex-1 border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                ) : (
+                  <span>{profile.college_or_company}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 text-gray-600">
+                <span className="text-lg">📞</span>
+                {editing ? (
+                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="Add phone number"
+                    className="flex-1 border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                ) : (
+                  <span>{profile.phone || <span className="text-gray-400 italic">No phone added</span>}</span>
+                )}
+              </div>
+              {editing && (
+                <div className="flex items-center gap-3 text-gray-600">
+                  <span className="text-lg">👤</span>
+                  <input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                    className="flex-1 border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+              )}
+            </div>
+
+            {msg && <p className="text-sm text-green-600">{msg}</p>}
+            {error && <p className="text-sm text-yellow-600">{error}</p>}
+
+            <div className="flex gap-3 pt-2">
+              {editing ? (
+                <>
+                  <button onClick={handleSave} disabled={saving}
+                    className="flex-1 bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition">
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                  <button onClick={() => { setEditing(false); setMsg(""); }}
+                    className="flex-1 border py-2 rounded-lg font-medium hover:bg-gray-50 transition">
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setEditing(true)}
+                  className="flex-1 border border-green-600 text-green-600 py-2 rounded-lg font-medium hover:bg-green-50 transition">
+                  Edit Profile
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* My Rides */}
+        <div className="bg-white rounded-2xl shadow p-8 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">My Rides</h2>
+            <Link href="/rides/new" className="text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition">
+              + Offer Ride
+            </Link>
+          </div>
+          {myRides.length === 0 ? (
+            <p className="text-gray-400 text-sm">You haven&apos;t offered any rides yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {myRides.map((ride) => (
+                <Link key={ride.id} href={`/rides/${ride.id}`}
+                  className="flex justify-between items-start border rounded-xl p-4 hover:border-green-400 transition">
+                  <div>
+                    <p className="font-medium text-sm">{ride.origin} → {ride.destination}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      🕐 {new Date(ride.departure_time).toLocaleString()} · 💺 {ride.available_seats} seats
+                    </p>
+                    {ride.bike_model && <p className="text-xs text-gray-400 mt-0.5">🏍️ {ride.bike_model}</p>}
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ml-3 ${
+                    ride.status === "open" ? "bg-green-100 text-green-700" :
+                    ride.status === "full" ? "bg-yellow-100 text-yellow-700" :
+                    "bg-gray-100 text-gray-500"
+                  }`}>
+                    {ride.status}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
