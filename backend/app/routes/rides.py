@@ -1,0 +1,112 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+from app.dependencies import get_current_user
+from app.supabase_client import supabase
+from app.models.schemas import RideCreate, RideResponse, RideRequestCreate, RideRequestResponse, FareNegotiate
+
+router = APIRouter(prefix="/rides", tags=["rides"])
+
+@router.post("/", response_model=RideResponse)
+def create_ride(payload: RideCreate, current_user=Depends(get_current_user)):
+    data = payload.model_dump()
+    data["rider_id"] = current_user["id"]
+    data["status"] = "open"
+    data["departure_time"] = data["departure_time"].isoformat()
+    res = supabase.table("rides").insert(data).execute()
+    if not res.data:
+        raise HTTPException(status_code=400, detail="Failed to create ride")
+    return res.data[0]
+
+@router.get("/", response_model=list[RideResponse])
+def list_rides(
+    origin: Optional[str] = Query(None),
+    destination: Optional[str] = Query(None),
+    status: Optional[str] = Query("open"),
+    current_user=Depends(get_current_user),
+):
+    query = supabase.table("rides").select("*")
+    if origin:
+        query = query.ilike("origin", f"%{origin}%")
+    if destination:
+        query = query.ilike("destination", f"%{destination}%")
+    if status:
+        query = query.eq("status", status)
+    res = query.order("departure_time").execute()
+    return res.data or []
+
+@router.get("/my", response_model=list[RideResponse])
+def my_rides(current_user=Depends(get_current_user)):
+    res = supabase.table("rides").select("*").eq("rider_id", current_user["id"]).execute()
+    return res.data or []
+
+@router.get("/{ride_id}", response_model=RideResponse)
+def get_ride(ride_id: str, current_user=Depends(get_current_user)):
+    res = supabase.table("rides").select("*").eq("id", ride_id).single().execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Ride not found")
+    return res.data
+
+@router.patch("/{ride_id}/cancel")
+def cancel_ride(ride_id: str, current_user=Depends(get_current_user)):
+    ride = supabase.table("rides").select("rider_id").eq("id", ride_id).single().execute()
+    if not ride.data or ride.data["rider_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    supabase.table("rides").update({"status": "cancelled"}).eq("id", ride_id).execute()
+    return {"message": "Ride cancelled"}
+
+# --- Ride Requests ---
+
+@router.post("/{ride_id}/requests", response_model=RideRequestResponse)
+def request_ride(ride_id: str, payload: RideRequestCreate, current_user=Depends(get_current_user)):
+    ride = supabase.table("rides").select("*").eq("id", ride_id).single().execute()
+    if not ride.data:
+        raise HTTPException(status_code=404, detail="Ride not found")
+    if ride.data["status"] != "open":
+        raise HTTPException(status_code=400, detail="Ride is not open for requests")
+    if ride.data["rider_id"] == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot request your own ride")
+
+    res = supabase.table("ride_requests").insert({
+        "ride_id": ride_id,
+        "requester_id": current_user["id"],
+        "message": payload.message,
+        "status": "pending",
+        "suggested_fare": ride.data.get("suggested_fare"),
+        "offered_fare": payload.offered_fare,
+    }).execute()
+    return res.data[0]
+
+@router.get("/{ride_id}/requests", response_model=list[RideRequestResponse])
+def get_ride_requests(ride_id: str, current_user=Depends(get_current_user)):
+    ride = supabase.table("rides").select("rider_id").eq("id", ride_id).single().execute()
+    if not ride.data or ride.data["rider_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    res = supabase.table("ride_requests").select("*").eq("ride_id", ride_id).execute()
+    return res.data or []
+
+@router.patch("/{ride_id}/requests/{request_id}")
+def respond_to_request(ride_id: str, request_id: str, action: str = Query(..., regex="^(accept|reject)$"), current_user=Depends(get_current_user)):
+    ride = supabase.table("rides").select("*").eq("id", ride_id).single().execute()
+    if not ride.data or ride.data["rider_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    update: dict = {"status": action + "ed"}
+    if action == "accept":
+        # Lock in agreed fare: use offered_fare if present, else suggested_fare
+        req = supabase.table("ride_requests").select("offered_fare,suggested_fare").eq("id", request_id).single().execute()
+        if req.data:
+            update["agreed_fare"] = req.data.get("offered_fare") or req.data.get("suggested_fare")
+    supabase.table("ride_requests").update(update).eq("id", request_id).execute()
+    return {"message": f"Request {action}ed"}
+
+@router.patch("/{ride_id}/requests/{request_id}/negotiate", response_model=RideRequestResponse)
+def negotiate_fare(ride_id: str, request_id: str, payload: FareNegotiate, current_user=Depends(get_current_user)):
+    """Passenger counter-offers a fare amount."""
+    req = supabase.table("ride_requests").select("*").eq("id", request_id).single().execute()
+    if not req.data:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if req.data["requester_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if req.data["status"] != "pending":
+        raise HTTPException(status_code=400, detail="Can only negotiate pending requests")
+    res = supabase.table("ride_requests").update({"offered_fare": payload.offered_fare}).eq("id", request_id).execute()
+    return res.data[0]
