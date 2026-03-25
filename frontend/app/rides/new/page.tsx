@@ -179,11 +179,6 @@ export default function NewRidePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Available Seats</label>
-              <input type="number" name="available_seats" min={1} max={3} required value={form.available_seats} onChange={handleChange}
-                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
-            </div>
-            <div>
               <label className="block text-sm font-medium mb-1">Bike Model (optional)</label>
               <input name="bike_model" value={form.bike_model} onChange={handleChange}
                 placeholder="e.g. Royal Enfield Classic 350"
