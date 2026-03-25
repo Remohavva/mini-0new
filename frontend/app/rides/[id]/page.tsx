@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import RideMapWrapper from "@/components/RideMapWrapper";
+import RatingStars from "@/components/RatingStars";
 import { geocode } from "@/lib/geocode";
 
 interface Ride {
@@ -49,6 +50,10 @@ export default function RideDetailPage() {
   const [actionMsg, setActionMsg] = useState("");
   const [originCoords, setOriginCoords] = useState<[number, number] | undefined>();
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>();
+  const [ratingValue, setRatingValue] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
+  const [myRating, setMyRating] = useState<{ rating: number; comment?: string } | null>(null);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -71,6 +76,9 @@ export default function RideDetailPage() {
           const reqs = await apiFetch<RideRequest[]>(`/rides/${id}/requests`).catch(() => []);
           setRequests(reqs);
         }
+        // Check if user already rated this ride
+        const existingRating = await apiFetch<{ rating: number; comment?: string } | null>(`/ratings/ride/${id}/mine`).catch(() => null);
+        if (existingRating) setMyRating(existingRating);
       }
       setLoading(false);
     }
@@ -124,6 +132,19 @@ export default function RideDetailPage() {
     setRide((r) => r ? { ...r, status: "completed" } : r);
   }
 
+  async function handleRate(revieweeId: string) {
+    try {
+      await apiFetch("/ratings/", {
+        method: "POST",
+        body: JSON.stringify({ ride_id: id, reviewee_id: revieweeId, rating: ratingValue, comment: ratingComment }),
+      });
+      setMyRating({ rating: ratingValue, comment: ratingComment });
+      setRatingSubmitted(true);
+    } catch (err: unknown) {
+      setActionMsg(err instanceof Error ? err.message : "Failed to submit rating");
+    }
+  }
+
   async function handleRespond(requestId: string, action: "accept" | "reject") {
     await apiFetch(`/rides/${id}/requests/${requestId}?action=${action}`, { method: "PATCH" });
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, status: action + "ed" } : r));
@@ -144,6 +165,8 @@ export default function RideDetailPage() {
             <span className={`text-sm px-3 py-1 rounded-full font-medium ${
               ride.status === "open" ? "bg-green-100 text-green-700" :
               ride.status === "full" ? "bg-yellow-100 text-yellow-700" :
+              ride.status === "started" ? "bg-blue-100 text-blue-700" :
+              ride.status === "completed" ? "bg-purple-100 text-purple-700" :
               "bg-gray-100 text-gray-500"
             }`}>{ride.status}</span>
           </div>
@@ -283,6 +306,42 @@ export default function RideDetailPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Rating section — shown after ride is completed */}
+        {ride.status === "completed" && (
+          <div className="bg-white rounded-xl shadow p-6 mt-6">
+            {myRating || ratingSubmitted ? (
+              <div>
+                <h2 className="font-semibold mb-2">Your Rating</h2>
+                <RatingStars value={myRating?.rating ?? ratingValue} readonly size="md" />
+                {myRating?.comment && <p className="text-sm text-gray-500 mt-1">{myRating.comment}</p>}
+                <p className="text-xs text-green-600 mt-2">Rating submitted ✓</p>
+              </div>
+            ) : (
+              <div>
+                <h2 className="font-semibold mb-3">Rate this ride</h2>
+                <RatingStars value={ratingValue} onChange={setRatingValue} size="lg" />
+                <textarea
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  placeholder="Leave a comment (optional)..."
+                  className="w-full mt-3 border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
+                  rows={2}
+                />
+                <button
+                  onClick={() => handleRate(isOwner
+                    ? (requests.find(r => r.status === "accepted")?.requester_id ?? "")
+                    : ride.rider_id
+                  )}
+                  className="mt-3 bg-yellow-400 text-gray-900 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-yellow-500 transition"
+                >
+                  Submit Rating
+                </button>
+                {actionMsg && <p className="text-sm mt-2 text-red-500">{actionMsg}</p>}
+              </div>
+            )}
           </div>
         )}
       </main>

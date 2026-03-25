@@ -158,6 +158,9 @@ export default function RidesPage() {
                     💺 {ride.available_seats} seat{ride.available_seats !== 1 ? "s" : ""}
                     {ride.bike_model && ` · 🏍️ ${ride.bike_model}`}
                   </p>
+                  {(ride as { is_recurring?: boolean }).is_recurring && (
+                    <p className="text-xs text-blue-600 mt-0.5">🔁 Recurring</p>
+                  )}
                   <FareTag ride={ride} />
                 </div>
               </Link>

@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import Link from "next/link";
+import RatingStars from "@/components/RatingStars";
 
 interface Profile {
   id: string;
@@ -32,6 +33,7 @@ export default function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [myRides, setMyRides] = useState<Ride[]>([]);
+  const [avgRating, setAvgRating] = useState<{ avg_rating: number; total: number } | null>(null);
   const [form, setForm] = useState({ full_name: "", phone: "", college_or_company: "" });
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -60,6 +62,7 @@ export default function ProfilePage() {
         setProfile(p);
         setForm({ full_name: p.full_name, phone: p.phone ?? "", college_or_company: p.college_or_company });
         apiFetch<Ride[]>("/rides/my").then(setMyRides).catch(() => {});
+        apiFetch<{ avg_rating: number; total: number }>(`/ratings/user/${data.user.id}`).then(setAvgRating).catch(() => {});
       } catch {
         setProfile(fallback);
         setForm({ full_name: fallback.full_name, phone: fallback.phone ?? "", college_or_company: fallback.college_or_company });
@@ -138,11 +141,19 @@ export default function ProfilePage() {
           <div className="space-y-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold">{profile.full_name}</h2>
-              <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                profile.user_type === "student" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-              }`}>
-                {profile.user_type === "student" ? "🎓 Student" : "💼 Corporate"}
-              </span>
+              <div className="flex items-center gap-2">
+                {avgRating && avgRating.total > 0 && (
+                  <div className="flex items-center gap-1">
+                    <RatingStars value={Math.round(avgRating.avg_rating)} readonly size="sm" />
+                    <span className="text-sm text-gray-500">{avgRating.avg_rating} ({avgRating.total})</span>
+                  </div>
+                )}
+                <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                  profile.user_type === "student" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                }`}>
+                  {profile.user_type === "student" ? "🎓 Student" : "💼 Corporate"}
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 text-sm">

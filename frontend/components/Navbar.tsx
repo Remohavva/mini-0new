@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
+import NotificationBell from "@/components/NotificationBell";
 
 interface Profile {
   full_name: string;
@@ -65,6 +66,7 @@ export default function Navbar() {
         <Link href="/rides" className="text-gray-600 hover:text-green-600">Browse Rides</Link>
         <Link href="/rides/new" className="text-gray-600 hover:text-green-600">Offer Ride</Link>
         <Link href="/dashboard" className="text-gray-600 hover:text-green-600">Dashboard</Link>
+        <NotificationBell />
 
         {/* Avatar with dropdown */}
         <div className="relative" ref={dropdownRef}>

@@ -4,6 +4,7 @@ from app.dependencies import get_current_user
 from app.supabase_client import supabase
 from app.models.schemas import RideCreate, RideResponse, RideRequestCreate, RideRequestResponse, FareNegotiate
 from app.email import send_ride_accepted_email
+from app.notifications import create_notification
 
 import math
 
@@ -81,6 +82,16 @@ def start_ride(ride_id: str, current_user=Depends(get_current_user)):
     if ride.data["status"] not in ("open", "full"):
         raise HTTPException(status_code=400, detail="Ride cannot be started")
     supabase.table("rides").update({"status": "started", "started_at": "now()"}).eq("id", ride_id).execute()
+    # Notify accepted passengers
+    accepted = supabase.table("ride_requests").select("requester_id").eq("ride_id", ride_id).eq("status", "accepted").execute()
+    for req in (accepted.data or []):
+        create_notification(
+            user_id=req["requester_id"],
+            type="ride_started",
+            title="Your ride has started 🚀",
+            body=f"The rider has started the ride from {ride.data['origin']} → {ride.data['destination']}.",
+            ride_id=ride_id,
+        )
     return {"message": "Ride started"}
 
 @router.patch("/{ride_id}/complete")
@@ -91,6 +102,16 @@ def complete_ride(ride_id: str, current_user=Depends(get_current_user)):
     if ride.data["status"] != "started":
         raise HTTPException(status_code=400, detail="Ride must be started before completing")
     supabase.table("rides").update({"status": "completed", "completed_at": "now()"}).eq("id", ride_id).execute()
+    # Notify accepted passengers
+    accepted = supabase.table("ride_requests").select("requester_id").eq("ride_id", ride_id).eq("status", "accepted").execute()
+    for req in (accepted.data or []):
+        create_notification(
+            user_id=req["requester_id"],
+            type="ride_completed",
+            title="Ride completed ✅",
+            body=f"Your ride from {ride.data['origin']} → {ride.data['destination']} is complete. Rate your experience!",
+            ride_id=ride_id,
+        )
     return {"message": "Ride completed"}
 
 # --- Ride Requests ---
@@ -113,6 +134,14 @@ def request_ride(ride_id: str, payload: RideRequestCreate, current_user=Depends(
         "suggested_fare": ride.data.get("suggested_fare"),
         "offered_fare": payload.offered_fare,
     }).execute()
+    # Notify the rider
+    create_notification(
+        user_id=ride.data["rider_id"],
+        type="ride_request",
+        title="New ride request",
+        body=f"Someone wants to join your ride from {ride.data['origin']} → {ride.data['destination']}",
+        ride_id=ride_id,
+    )
     return res.data[0]
 
 @router.get("/{ride_id}/requests", response_model=list[RideRequestResponse])
@@ -159,6 +188,25 @@ def respond_to_request(ride_id: str, request_id: str, action: str = Query(..., r
             except Exception:
                 pass  # don't fail the request if email fails
     supabase.table("ride_requests").update(update).eq("id", request_id).execute()
+    # Notify the requester
+    req_data = supabase.table("ride_requests").select("requester_id").eq("id", request_id).single().execute()
+    if req_data.data:
+        if action == "accept":
+            create_notification(
+                user_id=req_data.data["requester_id"],
+                type="request_accepted",
+                title="Ride request accepted! 🎉",
+                body=f"Your request for {ride.data['origin']} → {ride.data['destination']} was accepted.",
+                ride_id=ride_id,
+            )
+        else:
+            create_notification(
+                user_id=req_data.data["requester_id"],
+                type="request_rejected",
+                title="Ride request declined",
+                body=f"Your request for {ride.data['origin']} → {ride.data['destination']} was declined.",
+                ride_id=ride_id,
+            )
     return {"message": f"Request {action}ed"}
 
 @router.patch("/{ride_id}/requests/{request_id}/negotiate", response_model=RideRequestResponse)

@@ -40,6 +40,8 @@ class RideCreate(BaseModel):
     origin_lon: Optional[float] = None
     destination_lat: Optional[float] = None
     destination_lon: Optional[float] = None
+    is_recurring: Optional[bool] = False
+    recurrence_days: Optional[list[int]] = []
 
 class RideResponse(BaseModel):
     id: str
@@ -56,6 +58,8 @@ class RideResponse(BaseModel):
     origin_lon: Optional[float]
     destination_lat: Optional[float]
     destination_lon: Optional[float]
+    is_recurring: Optional[bool]
+    recurrence_days: Optional[list[int]]
     created_at: datetime
 
 class RideRequestCreate(BaseModel):
