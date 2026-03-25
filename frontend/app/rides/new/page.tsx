@@ -31,7 +31,7 @@ export default function NewRidePage() {
   const router = useRouter();
   const [form, setForm] = useState({
     origin: "", destination: "", departure_time: "",
-    available_seats: 1, bike_model: "", notes: "",
+    bike_model: "", notes: "",
   });
   const [originCoords, setOriginCoords] = useState<[number, number] | undefined>();
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>();
@@ -87,7 +87,7 @@ export default function NewRidePage() {
         method: "POST",
         body: JSON.stringify({
           ...form,
-          available_seats: Number(form.available_seats),
+          available_seats: 1,
           departure_time: new Date(form.departure_time).toISOString(),
           origin_lat: originCoords?.[0],
           origin_lon: originCoords?.[1],
