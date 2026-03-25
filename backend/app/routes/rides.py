@@ -5,6 +5,18 @@ from app.supabase_client import supabase
 from app.models.schemas import RideCreate, RideResponse, RideRequestCreate, RideRequestResponse, FareNegotiate
 from app.email import send_ride_accepted_email
 
+import math
+
+RATE_PER_KM = 4
+MIN_FARE = 20
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = math.sin(d_lat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon/2)**2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
 router = APIRouter(prefix="/rides", tags=["rides"])
 
 @router.post("/", response_model=RideResponse)
@@ -13,6 +25,10 @@ def create_ride(payload: RideCreate, current_user=Depends(get_current_user)):
     data["rider_id"] = current_user["id"]
     data["status"] = "open"
     data["departure_time"] = data["departure_time"].isoformat()
+    # Auto-calculate fare from coords if not provided
+    if not data.get("suggested_fare") and all(data.get(k) for k in ["origin_lat", "origin_lon", "destination_lat", "destination_lon"]):
+        km = haversine_km(data["origin_lat"], data["origin_lon"], data["destination_lat"], data["destination_lon"])
+        data["suggested_fare"] = max(round(km * RATE_PER_KM), MIN_FARE)
     res = supabase.table("rides").insert(data).execute()
     if not res.data:
         raise HTTPException(status_code=400, detail="Failed to create ride")
@@ -49,11 +65,33 @@ def get_ride(ride_id: str, current_user=Depends(get_current_user)):
 
 @router.patch("/{ride_id}/cancel")
 def cancel_ride(ride_id: str, current_user=Depends(get_current_user)):
-    ride = supabase.table("rides").select("rider_id").eq("id", ride_id).single().execute()
+    ride = supabase.table("rides").select("rider_id,status").eq("id", ride_id).single().execute()
     if not ride.data or ride.data["rider_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
+    if ride.data["status"] not in ("open", "full"):
+        raise HTTPException(status_code=400, detail="Cannot cancel a ride that is already started or completed")
     supabase.table("rides").update({"status": "cancelled"}).eq("id", ride_id).execute()
     return {"message": "Ride cancelled"}
+
+@router.patch("/{ride_id}/start")
+def start_ride(ride_id: str, current_user=Depends(get_current_user)):
+    ride = supabase.table("rides").select("rider_id,status").eq("id", ride_id).single().execute()
+    if not ride.data or ride.data["rider_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if ride.data["status"] not in ("open", "full"):
+        raise HTTPException(status_code=400, detail="Ride cannot be started")
+    supabase.table("rides").update({"status": "started", "started_at": "now()"}).eq("id", ride_id).execute()
+    return {"message": "Ride started"}
+
+@router.patch("/{ride_id}/complete")
+def complete_ride(ride_id: str, current_user=Depends(get_current_user)):
+    ride = supabase.table("rides").select("rider_id,status").eq("id", ride_id).single().execute()
+    if not ride.data or ride.data["rider_id"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if ride.data["status"] != "started":
+        raise HTTPException(status_code=400, detail="Ride must be started before completing")
+    supabase.table("rides").update({"status": "completed", "completed_at": "now()"}).eq("id", ride_id).execute()
+    return {"message": "Ride completed"}
 
 # --- Ride Requests ---
 

@@ -7,22 +7,36 @@ export interface GeoResult {
 }
 
 // India bounding box: SW(6.4, 68.1) → NE(35.7, 97.4)
-const INDIA_BOUNDS = "6.4,68.1,35.7,97.4"; // viewbox: min_lon,min_lat,max_lon,max_lat
+const INDIA_BOUNDS = "6.4,68.1,35.7,97.4"; // kept for reference but not used with bounded=1
 const INDIA_CENTER: [number, number] = [20.5937, 78.9629];
 
 export { INDIA_CENTER };
 
 export async function geocode(query: string): Promise<GeoResult[]> {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=in&viewbox=${INDIA_BOUNDS}&bounded=1`;
-  const res = await fetch(url, { headers: { "Accept-Language": "en" } });
-  return res.json();
+  try {
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
 }
 
 export async function reverseGeocode(lat: number, lon: number): Promise<string> {
   const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&countrycodes=in`;
-  const res = await fetch(url, { headers: { "Accept-Language": "en" } });
-  const data = await res.json();
-  return data.display_name ?? `${lat}, ${lon}`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "Accept-Language": "en",
+        "User-Agent": "Pillion/1.0 (bike-pooling-app)",
+      },
+    });
+    if (!res.ok) return `${lat}, ${lon}`;
+    const data = await res.json();
+    return data.display_name ?? `${lat}, ${lon}`;
+  } catch {
+    return `${lat}, ${lon}`;
+  }
 }
 
 // OSRM routing — free, no API key needed

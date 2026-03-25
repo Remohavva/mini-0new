@@ -19,7 +19,10 @@
         "backgroundColor": "#16a34a"
       }
     },
+    "updates": {
+      "enabled": false
+    },
     "plugins": ["expo-router", "expo-secure-store"],
-    "experiments": { "typedRoutes": true }
+    "experiments": { "typedRoutes": false }
   }
 }

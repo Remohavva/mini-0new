@@ -114,6 +114,16 @@ export default function RideDetailPage() {
     router.push("/dashboard");
   }
 
+  async function handleStart() {
+    await apiFetch(`/rides/${id}/start`, { method: "PATCH" });
+    setRide((r) => r ? { ...r, status: "started" } : r);
+  }
+
+  async function handleComplete() {
+    await apiFetch(`/rides/${id}/complete`, { method: "PATCH" });
+    setRide((r) => r ? { ...r, status: "completed" } : r);
+  }
+
   async function handleRespond(requestId: string, action: "accept" | "reject") {
     await apiFetch(`/rides/${id}/requests/${requestId}?action=${action}`, { method: "PATCH" });
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, status: action + "ed" } : r));
@@ -155,10 +165,28 @@ export default function RideDetailPage() {
             </div>
           ) : null}
 
-          {isOwner && ride.status === "open" && (
-            <button onClick={handleCancel} className="mt-4 text-sm text-red-500 hover:text-red-700 underline">
-              Cancel this ride
-            </button>
+          {/* Owner actions */}
+          {isOwner && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(ride.status === "open" || ride.status === "full") && (
+                <button onClick={handleStart}
+                  className="text-sm bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition">
+                  🚀 Start Ride
+                </button>
+              )}
+              {ride.status === "started" && (
+                <button onClick={handleComplete}
+                  className="text-sm bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 transition">
+                  ✅ Complete Ride
+                </button>
+              )}
+              {(ride.status === "open" || ride.status === "full") && (
+                <button onClick={handleCancel}
+                  className="text-sm text-red-500 hover:text-red-700 underline">
+                  Cancel
+                </button>
+              )}
+            </div>
           )}
         </div>
 

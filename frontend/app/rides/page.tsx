@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { geocode } from "@/lib/geocode";
 import Navbar from "@/components/Navbar";
 import MiniRideMapWrapper from "@/components/MiniRideMapWrapper";
 import Link from "next/link";
@@ -32,13 +33,47 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function getDisplayFare(ride: Ride): number | null {
-  if (ride.suggested_fare && ride.suggested_fare > 0) return ride.suggested_fare;
-  if (ride.origin_lat && ride.origin_lon && ride.destination_lat && ride.destination_lon) {
-    const km = haversineKm(ride.origin_lat, ride.origin_lon, ride.destination_lat, ride.destination_lon);
-    return Math.max(Math.round(km * RATE_PER_KM), MIN_FARE);
-  }
-  return null;
+function FareTag({ ride }: { ride: Ride }) {
+  const [fare, setFare] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Use stored fare first
+    if (ride.suggested_fare && ride.suggested_fare > 0) {
+      setFare(ride.suggested_fare);
+      return;
+    }
+    // Use stored coords
+    if (ride.origin_lat && ride.origin_lon && ride.destination_lat && ride.destination_lon) {
+      const km = haversineKm(ride.origin_lat, ride.origin_lon, ride.destination_lat, ride.destination_lon);
+      setFare(Math.max(Math.round(km * RATE_PER_KM), MIN_FARE));
+      return;
+    }
+    // Geocode as last resort
+    setLoading(true);
+    Promise.all([geocode(ride.origin), geocode(ride.destination)]).then(([oRes, dRes]) => {
+      const o = oRes[0];
+      const d = dRes[0];
+      if (o && d) {
+        const km = haversineKm(parseFloat(o.lat as unknown as string), parseFloat(o.lon as unknown as string), parseFloat(d.lat as unknown as string), parseFloat(d.lon as unknown as string));
+        setFare(Math.max(Math.round(km * RATE_PER_KM), MIN_FARE));
+      }
+      setLoading(false);
+    });
+  }, [ride]);
+
+  if (loading) return <p className="text-xs text-gray-400 mt-1.5 animate-pulse">Calculating fare...</p>;
+  if (!fare) return null;
+
+  const isEstimate = !ride.suggested_fare || ride.suggested_fare === 0;
+  return (
+    <div className="flex items-center gap-1.5 mt-2">
+      <span className="text-sm font-bold text-green-700">₹{fare}</span>
+      {isEstimate && (
+        <span className="text-xs bg-yellow-50 text-yellow-600 border border-yellow-200 px-1.5 py-0.5 rounded-full">est.</span>
+      )}
+    </div>
+  );
 }
 
 export default function RidesPage() {
@@ -76,16 +111,13 @@ export default function RidesPage() {
           </Link>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-4">
-          <button onClick={() => setTab("all")}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium ${tab === "all" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-            Available
-          </button>
-          <button onClick={() => setTab("my")}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium ${tab === "my" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-            My Rides
-          </button>
+          {(["all", "my"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${tab === t ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              {t === "all" ? "Available" : "My Rides"}
+            </button>
+          ))}
         </div>
 
         {tab === "all" && (
@@ -109,9 +141,9 @@ export default function RidesPage() {
             {rides.map((ride) => (
               <Link key={ride.id} href={`/rides/${ride.id}`}
                 className="block bg-white border rounded-xl overflow-hidden hover:border-green-400 hover:shadow-md transition">
-                <MiniRideMapWrapper origin={ride.origin} destination={ride.destination} />
+                <MiniRideMapWrapper key={`${ride.id}-map`} origin={ride.origin} destination={ride.destination} />
                 <div className="p-4">
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex justify-between items-start mb-1">
                     <p className="font-semibold text-base leading-tight">
                       {ride.origin} → {ride.destination}
                     </p>
@@ -126,15 +158,7 @@ export default function RidesPage() {
                     💺 {ride.available_seats} seat{ride.available_seats !== 1 ? "s" : ""}
                     {ride.bike_model && ` · 🏍️ ${ride.bike_model}`}
                   </p>
-                  {(() => {
-                    const fare = getDisplayFare(ride);
-                    return fare ? (
-                      <p className="text-sm font-semibold text-green-700 mt-1.5">
-                        ₹{fare}
-                        {!ride.suggested_fare && <span className="text-xs font-normal text-gray-400 ml-1">(est.)</span>}
-                      </p>
-                    ) : null;
-                  })()}
+                  <FareTag ride={ride} />
                 </div>
               </Link>
             ))}

@@ -92,6 +92,7 @@ export default function MiniRideMap({ origin, destination }: Props) {
 
   return (
     <MapContainer
+      key={`${origin}-${destination}`}
       center={[20.5937, 78.9629]}
       zoom={5}
       style={{ height: "160px", width: "100%", borderRadius: "0.5rem", zIndex: 0 }}
