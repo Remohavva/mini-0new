@@ -1,16 +1,20 @@
-import resend
+try:
+    import resend
+    RESEND_AVAILABLE = True
+except ImportError:
+    RESEND_AVAILABLE = False
+
 from app.config import settings
 
-resend.api_key = settings.resend_api_key
-
 def send_ride_accepted_email(to_email: str, requester_name: str, origin: str, destination: str, departure_time: str, agreed_fare: int | None):
-    if not settings.resend_api_key:
+    if not RESEND_AVAILABLE or not getattr(settings, "resend_api_key", None):
         return  # silently skip if not configured
 
+    resend.api_key = settings.resend_api_key
     fare_line = f"<p><strong>Agreed fare:</strong> ₹{agreed_fare}</p>" if agreed_fare else ""
 
     resend.Emails.send({
-        "from": settings.from_email,
+        "from": getattr(settings, "from_email", "noreply@pillion.app"),
         "to": to_email,
         "subject": "Your ride request was accepted 🎉",
         "html": f"""
