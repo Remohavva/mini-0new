@@ -74,7 +74,7 @@ export default function ProfilePage() {
         }
       } catch {
         setProfile(fallback);
-        setForm({ full_name: fallback.full_name, phone: fallback.phone ?? "", college_or_company: fallback.college_or_company });
+        setForm({ full_name: fallback.full_name, phone: fallback.phone ?? "", college_or_company: fallback.college_or_company, bike_model: fallback.bike_model ?? "", bike_number: fallback.bike_number ?? "" });
         setError("Could not reach backend — showing local profile data.");
       }
     });
