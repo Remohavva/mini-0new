@@ -74,39 +74,39 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={handleOpen} className="relative p-1 focus:outline-none" aria-label="Notifications">
+      <button onClick={handleOpen} className="relative p-2 focus:outline-none hover:scale-110 transition-transform" aria-label="Notifications">
         <span className="text-xl">🔔</span>
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <span className="font-semibold text-sm">Notifications</span>
+        <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-slate-200 z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+            <span className="font-semibold text-sm text-slate-900">Notifications</span>
             {notifications.length > 0 && (
               <button onClick={() => { apiFetch("/notifications/read-all", { method: "PATCH" }); setUnread(0); }}
-                className="text-xs text-green-600 hover:underline">Mark all read</button>
+                className="text-xs text-blue-600 hover:text-blue-700 transition">Mark all read</button>
             )}
           </div>
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">No notifications yet</p>
+              <p className="text-sm text-slate-500 text-center py-8">No notifications yet</p>
             ) : (
               notifications.map((n) => (
                 <button key={n.id} onClick={() => handleNotificationClick(n)}
-                  className={`w-full text-left px-4 py-3 border-b last:border-0 hover:bg-gray-50 transition ${!n.read ? "bg-green-50" : ""}`}>
+                  className={`w-full text-left px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition ${!n.read ? "bg-blue-50" : ""}`}>
                   <div className="flex gap-3 items-start">
                     <span className="text-lg shrink-0">{typeIcon[n.type] ?? "📢"}</span>
                     <div className="min-w-0">
-                      <p className={`text-sm ${!n.read ? "font-semibold text-gray-900" : "text-gray-700"}`}>{n.title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{n.body}</p>
-                      <p className="text-xs text-gray-400 mt-1">{timeAgo(n.created_at)}</p>
+                      <p className={`text-sm ${!n.read ? "font-semibold text-slate-900" : "text-slate-700"}`}>{n.title}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">{n.body}</p>
+                      <p className="text-xs text-slate-400 mt-1">{timeAgo(n.created_at)}</p>
                     </div>
-                    {!n.read && <span className="w-2 h-2 bg-green-500 rounded-full shrink-0 mt-1" />}
+                    {!n.read && <span className="w-2 h-2 bg-blue-600 rounded-full shrink-0 mt-1" />}
                   </div>
                 </button>
               ))

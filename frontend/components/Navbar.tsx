@@ -57,22 +57,22 @@ export default function Navbar() {
     .split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
 
   return (
-    <nav className="bg-white border-b px-6 py-3 flex items-center justify-between">
-      <Link href="/dashboard" className="flex items-center gap-2 font-bold text-green-600 text-lg">
-        🏍️ Pillion
+    <nav className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+      <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg">
+        <span className="text-blue-600">🏍️ Pillion</span>
       </Link>
 
-      <div className="flex items-center gap-4 text-sm">
-        <Link href="/rides" className="text-gray-600 hover:text-green-600">Browse Rides</Link>
-        <Link href="/rides/new" className="text-gray-600 hover:text-green-600">Offer Ride</Link>
-        <Link href="/dashboard" className="text-gray-600 hover:text-green-600">Dashboard</Link>
+      <div className="flex items-center gap-6 text-sm">
+        <Link href="/rides" className="text-slate-600 hover:text-blue-600 transition px-3 py-1.5 rounded-lg hover:bg-blue-50">Browse Rides</Link>
+        <Link href="/rides/new" className="text-slate-600 hover:text-blue-600 transition px-3 py-1.5 rounded-lg hover:bg-blue-50">Offer Ride</Link>
+        <Link href="/dashboard" className="text-slate-600 hover:text-blue-600 transition px-3 py-1.5 rounded-lg hover:bg-blue-50">Dashboard</Link>
         <NotificationBell />
 
         {/* Avatar with dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setOpen((v) => !v)}
-            className="focus:outline-none"
+            className="focus:outline-none hover:scale-105 transition-transform"
             aria-label="User menu"
           >
             {profile?.avatar_url ? (
@@ -81,19 +81,19 @@ export default function Navbar() {
                 alt="Avatar"
                 width={36}
                 height={36}
-                className="w-9 h-9 rounded-full object-cover ring-2 ring-green-200 hover:ring-green-500 transition"
+                className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-200 hover:ring-blue-500 transition"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-bold ring-2 ring-green-200 hover:ring-green-500 transition">
+              <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold ring-2 ring-slate-200 hover:ring-blue-500 transition">
                 {initials}
               </div>
             )}
           </button>
 
           {open && (
-            <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-lg border z-50 overflow-hidden">
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-200 z-50 overflow-hidden">
               {/* User info header */}
-              <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b">
+              <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
                 {profile?.avatar_url ? (
                   <Image
                     src={profile.avatar_url}
@@ -103,19 +103,19 @@ export default function Navbar() {
                     className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-bold">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
                     {initials}
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="font-semibold text-sm truncate">{profile?.full_name}</p>
-                  <p className="text-xs text-gray-500 truncate">{profile?.email}</p>
+                  <p className="font-semibold text-sm truncate text-slate-900">{profile?.full_name}</p>
+                  <p className="text-xs text-slate-500 truncate">{profile?.email}</p>
                 </div>
               </div>
 
               {/* Meta info */}
-              <div className="px-4 py-2 border-b">
-                <p className="text-xs text-gray-500">
+              <div className="px-4 py-2 border-b border-slate-200">
+                <p className="text-xs text-slate-500">
                   {profile?.user_type === "student" ? "🎓 Student" : "💼 Corporate"} · {profile?.college_or_company}
                 </p>
               </div>
@@ -123,7 +123,7 @@ export default function Navbar() {
               {/* Actions */}
               <div className="py-1">
                 <Link href="/profile" onClick={() => setOpen(false)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition">
                   👤 View Profile
                 </Link>
                 <button onClick={handleLogout}
