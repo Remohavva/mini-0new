@@ -1,13 +1,22 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import rides, users, ratings, notifications, bikes
+import os
 
 app = FastAPI(title="Pillion API", version="1.0.0")
 
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if not allowed_origins_env or allowed_origins_env == "*":
+    allowed_origins = ["*"]
+    allow_credentials = False
+else:
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(",")]
+    allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -20,4 +29,4 @@ app.include_router(bikes.router, prefix="/api")
 
 @app.get("/")
 def root():
-    return {"message": "BikePool API is running"}
+    return {"message": "Pillion API is running"}
