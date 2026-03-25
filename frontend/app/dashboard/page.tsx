@@ -23,11 +23,11 @@ export default function DashboardPage() {
   return (
     <div>
       <Navbar />
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-2">Welcome back 👋</h1>
-        <p className="text-gray-500 mb-8">{user?.email}</p>
+      <main className="max-w-4xl mx-auto px-4 py-6">
+        <h1 className="text-xl font-bold mb-2">Welcome back 👋</h1>
+        <p className="text-gray-500 text-sm mb-6">{user?.email}</p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Link href="/rides/new"
             className="bg-green-600 text-white rounded-xl p-6 hover:bg-green-700 transition text-center">
             <div className="text-3xl mb-2">➕</div>

@@ -16,7 +16,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className={`min-h-screen bg-white text-slate-900 font-sans antialiased`}>{children}</body>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#2563eb" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+      </head>
+      <body className="min-h-screen bg-white text-slate-900 font-sans antialiased">{children}</body>
     </html>
   );
 }
