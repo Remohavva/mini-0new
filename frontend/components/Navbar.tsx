@@ -65,6 +65,7 @@ export default function Navbar() {
       <div className="flex items-center gap-6 text-sm">
         <Link href="/rides" className="text-slate-600 hover:text-blue-600 transition px-3 py-1.5 rounded-lg hover:bg-blue-50">Browse Rides</Link>
         <Link href="/rides/new" className="text-slate-600 hover:text-blue-600 transition px-3 py-1.5 rounded-lg hover:bg-blue-50">Offer Ride</Link>
+        <Link href="/history" className="text-slate-600 hover:text-blue-600 transition px-3 py-1.5 rounded-lg hover:bg-blue-50">History</Link>
         <Link href="/dashboard" className="text-slate-600 hover:text-blue-600 transition px-3 py-1.5 rounded-lg hover:bg-blue-50">Dashboard</Link>
         <NotificationBell />
 
