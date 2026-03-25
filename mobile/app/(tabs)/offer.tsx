@@ -50,7 +50,7 @@ export default function OfferScreen() {
     setLoading(true);
     try {
       const [o, d] = await Promise.all([geocodeIndia(form.origin), geocodeIndia(form.destination)]);
-      await apiFetch("/rides", {
+      await apiFetch("/rides/", {
         method: "POST",
         body: JSON.stringify({
           ...form,

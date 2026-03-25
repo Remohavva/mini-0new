@@ -16,6 +16,9 @@ interface Profile {
   college_or_company: string;
   phone?: string;
   avatar_url?: string;
+  bike_model?: string;
+  bike_number?: string;
+  bike_image_url?: string;
 }
 
 interface Ride {
@@ -34,7 +37,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [myRides, setMyRides] = useState<Ride[]>([]);
   const [avgRating, setAvgRating] = useState<{ avg_rating: number; total: number } | null>(null);
-  const [form, setForm] = useState({ full_name: "", phone: "", college_or_company: "" });
+  const [form, setForm] = useState({ full_name: "", phone: "", college_or_company: "", bike_model: "", bike_number: "" });
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,9 +63,15 @@ export default function ProfilePage() {
       try {
         const p = await apiFetch<Profile>("/users/me");
         setProfile(p);
-        setForm({ full_name: p.full_name, phone: p.phone ?? "", college_or_company: p.college_or_company });
+        setForm({ full_name: p.full_name, phone: p.phone ?? "", college_or_company: p.college_or_company, bike_model: p.bike_model ?? "", bike_number: p.bike_number ?? "" });
         apiFetch<Ride[]>("/rides/my").then(setMyRides).catch(() => {});
         apiFetch<{ avg_rating: number; total: number }>(`/ratings/user/${data.user.id}`).then(setAvgRating).catch(() => {});
+        // Auto-fetch bike image if model set but no image yet
+        if (p.bike_model && !p.bike_image_url) {
+          apiFetch<{ image_url: string | null }>(`/bikes/save-image?model=${encodeURIComponent(p.bike_model)}`, { method: "POST" })
+            .then((r) => { if (r.image_url) setProfile((prev) => prev ? { ...prev, bike_image_url: r.image_url! } : prev); })
+            .catch(() => {});
+        }
       } catch {
         setProfile(fallback);
         setForm({ full_name: fallback.full_name, phone: fallback.phone ?? "", college_or_company: fallback.college_or_company });
@@ -97,6 +106,12 @@ export default function ProfilePage() {
       setProfile(updated);
       setEditing(false);
       setMsg("Profile updated.");
+      // Re-fetch bike image if model changed
+      if (form.bike_model && form.bike_model !== profile?.bike_model) {
+        apiFetch<{ image_url: string | null }>(`/bikes/save-image?model=${encodeURIComponent(form.bike_model)}`, { method: "POST" })
+          .then((r) => { if (r.image_url) setProfile((prev) => prev ? { ...prev, bike_image_url: r.image_url! } : prev); })
+          .catch(() => {});
+      }
     } catch (err: unknown) {
       setMsg(err instanceof Error ? err.message : "Update failed");
     }
@@ -113,19 +128,26 @@ export default function ProfilePage() {
       <main className="max-w-2xl mx-auto px-4 py-10">
         <div className="bg-white rounded-2xl shadow p-8">
 
-          {/* Avatar */}
+          {/* Avatar with bike cover */}
           <div className="flex flex-col items-center mb-8">
-            <div className="relative group cursor-pointer" onClick={() => fileRef.current?.click()}>
+            {/* Bike cover photo */}
+            {profile.bike_image_url && (
+              <div className="w-full h-32 rounded-xl overflow-hidden mb-[-40px] relative">
+                <Image src={profile.bike_image_url} alt={profile.bike_model ?? "Bike"} fill className="object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                {profile.bike_model && (
+                  <span className="absolute bottom-2 right-3 text-white text-xs font-medium bg-black/30 px-2 py-0.5 rounded-full">
+                    🏍️ {profile.bike_model}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="relative group cursor-pointer z-10" onClick={() => fileRef.current?.click()}>
               {profile.avatar_url ? (
-                <Image
-                  src={profile.avatar_url}
-                  alt="Avatar"
-                  width={96}
-                  height={96}
-                  className="w-24 h-24 rounded-full object-cover ring-4 ring-green-100"
-                />
+                <Image src={profile.avatar_url} alt="Avatar" width={96} height={96}
+                  className={`w-24 h-24 rounded-full object-cover ring-4 ${profile.bike_image_url ? "ring-white" : "ring-green-100"}`} />
               ) : (
-                <div className="w-24 h-24 rounded-full bg-green-600 flex items-center justify-center text-white text-3xl font-bold ring-4 ring-green-100">
+                <div className={`w-24 h-24 rounded-full bg-green-600 flex items-center justify-center text-white text-3xl font-bold ring-4 ${profile.bike_image_url ? "ring-white" : "ring-green-100"}`}>
                   {initials}
                 </div>
               )}
@@ -185,6 +207,29 @@ export default function ProfilePage() {
                   <span className="text-lg">👤</span>
                   <input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                     className="flex-1 border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+              )}
+              {/* Bike details */}
+              <div className="flex items-center gap-3 text-gray-600">
+                <span className="text-lg">🏍️</span>
+                {editing ? (
+                  <input value={form.bike_model} onChange={(e) => setForm({ ...form, bike_model: e.target.value })}
+                    placeholder="Bike model (e.g. Royal Enfield Classic 350)"
+                    className="flex-1 border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                ) : (
+                  <span>{profile.bike_model || <span className="text-gray-400 italic">No bike added</span>}</span>
+                )}
+              </div>
+              {(editing || profile.bike_number) && (
+                <div className="flex items-center gap-3 text-gray-600">
+                  <span className="text-lg">🔢</span>
+                  {editing ? (
+                    <input value={form.bike_number} onChange={(e) => setForm({ ...form, bike_number: e.target.value.toUpperCase() })}
+                      placeholder="Number plate (e.g. KA 01 AB 1234)"
+                      className="flex-1 border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-green-500 uppercase" />
+                  ) : (
+                    <span className="font-mono">{profile.bike_number}</span>
+                  )}
                 </div>
               )}
             </div>

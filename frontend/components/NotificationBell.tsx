@@ -49,16 +49,22 @@ export default function NotificationBell() {
   }, []);
 
   async function handleOpen() {
-    setOpen((v) => !v);
-    if (!open && unread > 0) {
+    const nextOpen = !open;
+    setOpen(nextOpen);
+    if (nextOpen && unread > 0) {
       await apiFetch("/notifications/read-all", { method: "PATCH" });
       setUnread(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     }
   }
 
-  function handleNotificationClick(n: Notification) {
+  async function handleNotificationClick(n: Notification) {
     setOpen(false);
+    if (!n.read) {
+      await apiFetch(`/notifications/${n.id}/read`, { method: "PATCH" }).catch(() => {});
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      setUnread((prev) => Math.max(0, prev - 1));
+    }
     if (n.ride_id) router.push(`/rides/${n.ride_id}`);
   }
 
@@ -88,8 +94,16 @@ export default function NotificationBell() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
             <span className="font-semibold text-sm text-slate-900">Notifications</span>
             {notifications.length > 0 && (
-              <button onClick={() => { apiFetch("/notifications/read-all", { method: "PATCH" }); setUnread(0); }}
-                className="text-xs text-blue-600 hover:text-blue-700 transition">Mark all read</button>
+              <button
+                onClick={async () => {
+                  await apiFetch("/notifications/read-all", { method: "PATCH" });
+                  setUnread(0);
+                  setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700 transition"
+              >
+                Mark all read
+              </button>
             )}
           </div>
           <div className="max-h-80 overflow-y-auto">

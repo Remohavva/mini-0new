@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
@@ -36,6 +36,15 @@ interface RideRequest {
   agreed_fare?: number;
 }
 
+interface RideMessage {
+  id: string;
+  ride_id: string;
+  sender_id: string;
+  sender_name?: string | null;
+  message: string;
+  created_at: string;
+}
+
 export default function RideDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -54,6 +63,10 @@ export default function RideDetailPage() {
   const [ratingComment, setRatingComment] = useState("");
   const [myRating, setMyRating] = useState<{ rating: number; comment?: string } | null>(null);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [messages, setMessages] = useState<RideMessage[]>([]);
+  const [chatText, setChatText] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -75,6 +88,9 @@ export default function RideDetailPage() {
         if (data.user?.id === rideData.rider_id) {
           const reqs = await apiFetch<RideRequest[]>(`/rides/${id}/requests`).catch(() => []);
           setRequests(reqs);
+        } else if (data.user?.id) {
+          const mine = await apiFetch<RideRequest | null>(`/rides/${id}/requests/mine`).catch(() => null);
+          setMyRequest(mine);
         }
         // Check if user already rated this ride
         const existingRating = await apiFetch<{ rating: number; comment?: string } | null>(`/ratings/ride/${id}/mine`).catch(() => null);
@@ -150,10 +166,64 @@ export default function RideDetailPage() {
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, status: action + "ed" } : r));
   }
 
+  async function handleSendChat() {
+    if (!canChat) return;
+    const trimmed = chatText.trim();
+    if (!trimmed) return;
+    setChatSending(true);
+    try {
+      await apiFetch(`/rides/${id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ message: trimmed }),
+      });
+      setChatText("");
+      await loadMessages();
+    } finally {
+      setChatSending(false);
+    }
+  }
+
+  const isOwner = !!ride && !!currentUserId && currentUserId === ride.rider_id;
+  const canChat = isOwner ? requests.some((r) => r.status === "accepted") : myRequest?.status === "accepted";
+
+  async function loadMessages() {
+    const data = await apiFetch<RideMessage[]>(`/rides/${id}/messages`).catch(() => []);
+    setMessages(data);
+  }
+
+  useEffect(() => {
+    if (!canChat) return;
+    loadMessages();
+    const interval = setInterval(loadMessages, 3000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canChat, id]);
+
+  useEffect(() => {
+    if (!canChat) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, canChat]);
+
+  // Passenger must refresh their request status to unlock chat when the owner accepts.
+  useEffect(() => {
+    if (isOwner) return;
+    if (!ride || !currentUserId) return;
+    let cancelled = false;
+    async function refreshMyRequest() {
+      const mine = await apiFetch<RideRequest | null>(`/rides/${id}/requests/mine`).catch(() => null);
+      if (!cancelled) setMyRequest(mine);
+    }
+    refreshMyRequest();
+    const interval = setInterval(refreshMyRequest, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOwner, id, ride]);
+
   if (loading) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   if (!ride) return <div className="flex items-center justify-center min-h-screen">Ride not found.</div>;
-
-  const isOwner = currentUserId === ride.rider_id;
 
   return (
     <div>
@@ -305,6 +375,59 @@ export default function RideDetailPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chat (only after request is accepted) */}
+        {canChat && (
+          <div className="bg-white rounded-xl shadow p-6 mt-6">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="font-semibold">Chat</h2>
+              <span className="text-xs text-gray-500">Ride status: {ride.status}</span>
+            </div>
+
+            <div className="border rounded-lg p-3 h-64 overflow-y-auto bg-gray-50">
+              {messages.length === 0 ? (
+                <p className="text-sm text-gray-500">No messages yet.</p>
+              ) : (
+                messages.map((m) => {
+                  const isMe = m.sender_id === currentUserId;
+                  return (
+                    <div key={m.id} className={`mb-2 ${isMe ? "text-right" : "text-left"}`}>
+                      <div
+                        className={`inline-block max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                          isMe
+                            ? "bg-blue-600 text-white"
+                            : "bg-white border border-gray-200 text-gray-800"
+                        }`}
+                      >
+                        {m.message}
+                        <div className={`text-[11px] mt-1 ${isMe ? "text-blue-100" : "text-gray-400"}`}>
+                          {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="flex gap-2 mt-3">
+              <input
+                value={chatText}
+                onChange={(e) => setChatText(e.target.value)}
+                placeholder="Type a message..."
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleSendChat}
+                disabled={chatSending || !chatText.trim()}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {chatSending ? "Sending..." : "Send"}
+              </button>
             </div>
           </div>
         )}

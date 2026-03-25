@@ -7,12 +7,8 @@ import Link from "next/link";
 export default function SignupPage() {
   const router = useRouter();
   const [form, setForm] = useState({
-    email: "",
-    password: "",
-    full_name: "",
-    user_type: "student",
-    college_or_company: "",
-    phone: "",
+    email: "", password: "", full_name: "", user_type: "student",
+    college_or_company: "", phone: "", bike_model: "", bike_number: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,6 +31,8 @@ export default function SignupPage() {
           user_type: form.user_type,
           college_or_company: form.college_or_company,
           phone: form.phone,
+          bike_model: form.bike_model,
+          bike_number: form.bike_number,
         },
       },
     });
@@ -90,6 +88,27 @@ export default function SignupPage() {
             <input name="phone" value={form.phone} onChange={handleChange}
               className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
+
+          {/* Bike details */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-semibold text-gray-700 mb-3">🏍️ Your Bike (optional)</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Bike Model</label>
+                <input name="bike_model" value={form.bike_model} onChange={handleChange}
+                  placeholder="e.g. Royal Enfield Classic 350"
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Number Plate</label>
+                <input name="bike_number" value={form.bike_number} onChange={handleChange}
+                  placeholder="e.g. KA 01 AB 1234"
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 uppercase"
+                  style={{ textTransform: "uppercase" }} />
+              </div>
+            </div>
+          </div>
+
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={loading}
             className="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 transition">

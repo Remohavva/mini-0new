@@ -22,12 +22,17 @@ create table public.rides (
   available_seats int not null check (available_seats >= 0),
   bike_model text,
   notes text,
-  status text default 'open' check (status in ('open', 'full', 'completed', 'cancelled')),
+  status text default 'open' check (status in ('open', 'full', 'started', 'completed', 'cancelled')),
   suggested_fare int default 0,   -- auto-calculated fare in INR
+  -- Recurring rides (daily commuter pattern)
+  is_recurring boolean default false,
+  recurrence_days int[] default '{}',
   origin_lat float,
   origin_lon float,
   destination_lat float,
   destination_lon float,
+  started_at timestamptz,
+  completed_at timestamptz,
   created_at timestamptz default now()
 );
 
@@ -86,3 +91,39 @@ create policy "Riders see requests for their rides" on public.ride_requests for 
 create policy "Authenticated users can create requests" on public.ride_requests for insert with check (auth.uid() = requester_id);
 create policy "Riders can update request status" on public.ride_requests for update
   using (auth.uid() = (select rider_id from public.rides where id = ride_id));
+
+-- Ride messages table (chat between rider and accepted passenger)
+create table public.ride_messages (
+  id uuid default gen_random_uuid() primary key,
+  ride_id uuid references public.rides(id) on delete cascade not null,
+  sender_id uuid references public.profiles(id) on delete cascade not null,
+  message text not null,
+  created_at timestamptz default now()
+);
+
+alter table public.ride_messages enable row level security;
+
+-- Users can view messages if they are the rider OR an accepted passenger on that ride.
+create policy "Users can view ride messages" on public.ride_messages for select
+  using (
+    auth.uid() = (select rider_id from public.rides where id = ride_messages.ride_id)
+    OR auth.uid() in (
+      select requester_id
+      from public.ride_requests
+      where ride_id = ride_messages.ride_id and status = 'accepted'
+    )
+  );
+
+-- Users can send messages only if they're the rider or an accepted passenger on that ride.
+create policy "Users can send ride messages" on public.ride_messages for insert
+  with check (
+    sender_id = auth.uid()
+    AND (
+      auth.uid() = (select rider_id from public.rides where id = ride_messages.ride_id)
+      OR auth.uid() in (
+        select requester_id
+        from public.ride_requests
+        where ride_id = ride_messages.ride_id and status = 'accepted'
+      )
+    )
+  );

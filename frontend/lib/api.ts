@@ -27,7 +27,8 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     headers: { "Content-Type": "application/json", ...headers, ...(options.headers as object) },
   });
 
-  if (res.status === 401) {
+  // Supabase auth failures can surface as 401 (expired token) or 403 (missing/invalid bearer).
+  if (res.status === 401 || res.status === 403) {
     await supabase.auth.signOut();
     window.location.href = "/auth/login";
     throw new Error("Session expired. Please sign in again.");

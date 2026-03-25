@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
@@ -42,6 +42,12 @@ export default function NewRidePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    apiFetch<{ bike_model?: string }>("/users/me").then((p) => {
+      if (p.bike_model) setForm((f) => ({ ...f, bike_model: p.bike_model! }));
+    }).catch(() => {});
+  }, []);
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
@@ -77,7 +83,7 @@ export default function NewRidePage() {
     setLoading(true);
     setError("");
     try {
-      const ride = await apiFetch<{ id: string }>("/rides", {
+      const ride = await apiFetch<{ id: string }>("/rides/", {
         method: "POST",
         body: JSON.stringify({
           ...form,

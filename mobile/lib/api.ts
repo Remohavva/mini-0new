@@ -14,6 +14,10 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     ...options,
     headers: { "Content-Type": "application/json", ...headers, ...(options.headers as object) },
   });
+  if (res.status === 401 || res.status === 403) {
+    await supabase.auth.signOut().catch(() => {});
+    throw new Error("Session expired. Please sign in again.");
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(err.detail || "Request failed");

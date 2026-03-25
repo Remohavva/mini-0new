@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 from app.dependencies import get_current_user
 from app.supabase_client import supabase
-from app.models.schemas import RideCreate, RideResponse, RideRequestCreate, RideRequestResponse, FareNegotiate
+from app.models.schemas import RideCreate, RideResponse, RideRequestCreate, RideRequestResponse, FareNegotiate, RideMessageCreate, RideMessageResponse
 from app.email import send_ride_accepted_email
 from app.notifications import create_notification
 
@@ -30,7 +30,18 @@ def create_ride(payload: RideCreate, current_user=Depends(get_current_user)):
     if not data.get("suggested_fare") and all(data.get(k) for k in ["origin_lat", "origin_lon", "destination_lat", "destination_lon"]):
         km = haversine_km(data["origin_lat"], data["origin_lon"], data["destination_lat"], data["destination_lon"])
         data["suggested_fare"] = max(round(km * RATE_PER_KM), MIN_FARE)
-    res = supabase.table("rides").insert(data).execute()
+    try:
+        res = supabase.table("rides").insert(data).execute()
+    except Exception as e:
+        # If the DB schema hasn't been updated yet, some optional columns may not exist.
+        # Retry without those fields to avoid hard failures.
+        err_str = str(e)
+        if "is_recurring" in err_str or "recurrence_days" in err_str:
+            data.pop("is_recurring", None)
+            data.pop("recurrence_days", None)
+            res = supabase.table("rides").insert(data).execute()
+        else:
+            raise
     if not res.data:
         raise HTTPException(status_code=400, detail="Failed to create ride")
     return res.data[0]
@@ -54,7 +65,12 @@ def list_rides(
 
 @router.get("/my", response_model=list[RideResponse])
 def my_rides(current_user=Depends(get_current_user)):
-    res = supabase.table("rides").select("*").eq("rider_id", current_user["id"]).execute()
+    res = supabase.table("rides").select("*").eq("rider_id", current_user["id"]).order("departure_time", desc=True).execute()
+    return res.data or []
+
+@router.get("/my-requests")
+def my_requests(current_user=Depends(get_current_user)):
+    res = supabase.table("ride_requests").select("*").eq("requester_id", current_user["id"]).order("created_at", desc=True).execute()
     return res.data or []
 
 @router.get("/{ride_id}", response_model=RideResponse)
@@ -76,12 +92,26 @@ def cancel_ride(ride_id: str, current_user=Depends(get_current_user)):
 
 @router.patch("/{ride_id}/start")
 def start_ride(ride_id: str, current_user=Depends(get_current_user)):
-    ride = supabase.table("rides").select("rider_id,status").eq("id", ride_id).single().execute()
+    ride = (
+        supabase.table("rides")
+        .select("rider_id,status,origin,destination")
+        .eq("id", ride_id)
+        .single()
+        .execute()
+    )
     if not ride.data or ride.data["rider_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     if ride.data["status"] not in ("open", "full"):
         raise HTTPException(status_code=400, detail="Ride cannot be started")
-    supabase.table("rides").update({"status": "started", "started_at": "now()"}).eq("id", ride_id).execute()
+    # Some DB setups may not have the `started` status yet (older schema). Fallback to `full`.
+    try:
+        supabase.table("rides").update({"status": "started", "started_at": "now()"}).eq("id", ride_id).execute()
+    except Exception as e:
+        err_str = str(e)
+        if "started" in err_str and ("status" in err_str or "check" in err_str or "constraint" in err_str):
+            supabase.table("rides").update({"status": "full"}).eq("id", ride_id).execute()
+        else:
+            raise
     # Notify accepted passengers
     accepted = supabase.table("ride_requests").select("requester_id").eq("ride_id", ride_id).eq("status", "accepted").execute()
     for req in (accepted.data or []):
@@ -89,17 +119,26 @@ def start_ride(ride_id: str, current_user=Depends(get_current_user)):
             user_id=req["requester_id"],
             type="ride_started",
             title="Your ride has started 🚀",
-            body=f"The rider has started the ride from {ride.data['origin']} → {ride.data['destination']}.",
+            body=(
+                f"The rider has started the ride from "
+                f"{ride.data.get('origin', 'Unknown')} → {ride.data.get('destination', 'Unknown')}."
+            ),
             ride_id=ride_id,
         )
     return {"message": "Ride started"}
 
 @router.patch("/{ride_id}/complete")
 def complete_ride(ride_id: str, current_user=Depends(get_current_user)):
-    ride = supabase.table("rides").select("rider_id,status").eq("id", ride_id).single().execute()
+    ride = (
+        supabase.table("rides")
+        .select("rider_id,status,origin,destination")
+        .eq("id", ride_id)
+        .single()
+        .execute()
+    )
     if not ride.data or ride.data["rider_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
-    if ride.data["status"] != "started":
+    if ride.data["status"] not in ("started", "full"):
         raise HTTPException(status_code=400, detail="Ride must be started before completing")
     supabase.table("rides").update({"status": "completed", "completed_at": "now()"}).eq("id", ride_id).execute()
     # Notify accepted passengers
@@ -109,7 +148,10 @@ def complete_ride(ride_id: str, current_user=Depends(get_current_user)):
             user_id=req["requester_id"],
             type="ride_completed",
             title="Ride completed ✅",
-            body=f"Your ride from {ride.data['origin']} → {ride.data['destination']} is complete. Rate your experience!",
+            body=(
+                f"Your ride from {ride.data.get('origin', 'Unknown')} → "
+                f"{ride.data.get('destination', 'Unknown')} is complete. Rate your experience!"
+            ),
             ride_id=ride_id,
         )
     return {"message": "Ride completed"}
@@ -221,3 +263,104 @@ def negotiate_fare(ride_id: str, request_id: str, payload: FareNegotiate, curren
         raise HTTPException(status_code=400, detail="Can only negotiate pending requests")
     res = supabase.table("ride_requests").update({"offered_fare": payload.offered_fare}).eq("id", request_id).execute()
     return res.data[0]
+
+
+# --- Chat / Messaging ---
+
+@router.get("/{ride_id}/requests/mine", response_model=Optional[RideRequestResponse])
+def get_my_ride_request(ride_id: str, current_user=Depends(get_current_user)):
+    res = (
+        supabase.table("ride_requests")
+        .select("*")
+        .eq("ride_id", ride_id)
+        .eq("requester_id", current_user["id"])
+        .single()
+        .execute()
+    )
+    # Supabase returns `data=None` when not found.
+    return res.data
+
+
+def _get_accepted_passengers(ride_id: str):
+    accepted = (
+        supabase.table("ride_requests")
+        .select("requester_id")
+        .eq("ride_id", ride_id)
+        .eq("status", "accepted")
+        .execute()
+    )
+    return [r["requester_id"] for r in (accepted.data or [])]
+
+
+@router.get("/{ride_id}/messages", response_model=list[RideMessageResponse])
+def get_ride_messages(ride_id: str, current_user=Depends(get_current_user)):
+    ride = supabase.table("rides").select("id,rider_id").eq("id", ride_id).single().execute()
+    if not ride.data:
+        raise HTTPException(status_code=404, detail="Ride not found")
+
+    accepted_passengers = _get_accepted_passengers(ride_id)
+    can_view = current_user["id"] == ride.data["rider_id"] or current_user["id"] in accepted_passengers
+    if not can_view:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    msg_res = (
+        supabase.table("ride_messages")
+        .select("id,ride_id,sender_id,message,created_at")
+        .eq("ride_id", ride_id)
+        .order("created_at")
+        .limit(200)
+        .execute()
+    )
+    messages = msg_res.data or []
+
+    if messages:
+        sender_ids = list({m["sender_id"] for m in messages})
+        profiles = (
+            supabase.table("profiles")
+            .select("id,full_name")
+            .in_("id", sender_ids)
+            .execute()
+        )
+        name_map = {p["id"]: p["full_name"] for p in (profiles.data or [])}
+        for m in messages:
+            m["sender_name"] = name_map.get(m["sender_id"], None)
+
+    return messages
+
+
+@router.post("/{ride_id}/messages", response_model=RideMessageResponse)
+def post_ride_message(ride_id: str, payload: RideMessageCreate, current_user=Depends(get_current_user)):
+    if not payload.message or not payload.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    ride = supabase.table("rides").select("id,rider_id,status").eq("id", ride_id).single().execute()
+    if not ride.data:
+        raise HTTPException(status_code=404, detail="Ride not found")
+
+    accepted_passengers = _get_accepted_passengers(ride_id)
+    can_send = current_user["id"] == ride.data["rider_id"] or current_user["id"] in accepted_passengers
+    if not can_send:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Require at least one accepted passenger before starting chat.
+    if len(accepted_passengers) == 0:
+        raise HTTPException(status_code=400, detail="Chat is only available once a passenger is accepted")
+
+    res = (
+        supabase.table("ride_messages")
+        .insert(
+            {
+                "ride_id": ride_id,
+                "sender_id": current_user["id"],
+                "message": payload.message.strip(),
+            }
+        )
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=400, detail="Failed to send message")
+
+    msg = res.data[0]
+    sender = supabase.table("profiles").select("full_name").eq("id", msg["sender_id"]).single().execute()
+    msg["sender_name"] = sender.data["full_name"] if sender.data else None
+    return msg

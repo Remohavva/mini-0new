@@ -92,7 +92,7 @@ export default function RidesPage() {
       const params = new URLSearchParams({ status: "open" });
       if (origin) params.set("origin", origin);
       if (destination) params.set("destination", destination);
-      const data = await apiFetch<Ride[]>(`/rides?${params}`).catch(() => []);
+      const data = await apiFetch<Ride[]>(`/rides/?${params}`).catch(() => []);
       setRides(data);
     }
     setLoading(false);
