@@ -14,6 +14,31 @@ interface Ride {
   status: string;
   bike_model?: string;
   rider_id: string;
+  suggested_fare?: number;
+  origin_lat?: number;
+  origin_lon?: number;
+  destination_lat?: number;
+  destination_lon?: number;
+}
+
+const RATE_PER_KM = 4;
+const MIN_FARE = 20;
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function getDisplayFare(ride: Ride): number | null {
+  if (ride.suggested_fare && ride.suggested_fare > 0) return ride.suggested_fare;
+  if (ride.origin_lat && ride.origin_lon && ride.destination_lat && ride.destination_lon) {
+    const km = haversineKm(ride.origin_lat, ride.origin_lon, ride.destination_lat, ride.destination_lon);
+    return Math.max(Math.round(km * RATE_PER_KM), MIN_FARE);
+  }
+  return null;
 }
 
 export default function RidesPage() {
@@ -101,6 +126,15 @@ export default function RidesPage() {
                     💺 {ride.available_seats} seat{ride.available_seats !== 1 ? "s" : ""}
                     {ride.bike_model && ` · 🏍️ ${ride.bike_model}`}
                   </p>
+                  {(() => {
+                    const fare = getDisplayFare(ride);
+                    return fare ? (
+                      <p className="text-sm font-semibold text-green-700 mt-1.5">
+                        ₹{fare}
+                        {!ride.suggested_fare && <span className="text-xs font-normal text-gray-400 ml-1">(est.)</span>}
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
               </Link>
             ))}

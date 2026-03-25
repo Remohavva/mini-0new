@@ -3,6 +3,7 @@ from typing import Optional
 from app.dependencies import get_current_user
 from app.supabase_client import supabase
 from app.models.schemas import RideCreate, RideResponse, RideRequestCreate, RideRequestResponse, FareNegotiate
+from app.email import send_ride_accepted_email
 
 router = APIRouter(prefix="/rides", tags=["rides"])
 
@@ -90,11 +91,27 @@ def respond_to_request(ride_id: str, request_id: str, action: str = Query(..., r
     if not ride.data or ride.data["rider_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     update: dict = {"status": action + "ed"}
+    agreed_fare = None
     if action == "accept":
-        # Lock in agreed fare: use offered_fare if present, else suggested_fare
-        req = supabase.table("ride_requests").select("offered_fare,suggested_fare").eq("id", request_id).single().execute()
+        req = supabase.table("ride_requests").select("offered_fare,suggested_fare,requester_id").eq("id", request_id).single().execute()
         if req.data:
-            update["agreed_fare"] = req.data.get("offered_fare") or req.data.get("suggested_fare")
+            agreed_fare = req.data.get("offered_fare") or req.data.get("suggested_fare")
+            update["agreed_fare"] = agreed_fare
+            # Send email notification to requester
+            try:
+                requester_id = req.data.get("requester_id")
+                profile = supabase.table("profiles").select("email,full_name").eq("id", requester_id).single().execute()
+                if profile.data:
+                    send_ride_accepted_email(
+                        to_email=profile.data["email"],
+                        requester_name=profile.data.get("full_name", "there"),
+                        origin=ride.data["origin"],
+                        destination=ride.data["destination"],
+                        departure_time=str(ride.data["departure_time"]),
+                        agreed_fare=agreed_fare,
+                    )
+            except Exception:
+                pass  # don't fail the request if email fails
     supabase.table("ride_requests").update(update).eq("id", request_id).execute()
     return {"message": f"Request {action}ed"}
 
