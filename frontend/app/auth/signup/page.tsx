@@ -8,7 +8,7 @@ export default function SignupPage() {
   const router = useRouter();
   const [form, setForm] = useState({
     email: "", password: "", full_name: "", user_type: "student",
-    college_or_company: "", phone: "", bike_model: "", bike_number: "",
+    college_or_company: "", phone: "", bike_model: "", bike_number: "", has_bike: false,
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -91,22 +91,33 @@ export default function SignupPage() {
 
           {/* Bike details */}
           <div className="border-t pt-4">
-            <p className="text-sm font-semibold text-gray-700 mb-3">🏍️ Your Bike (optional)</p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Bike Model</label>
-                <input name="bike_model" value={form.bike_model} onChange={handleChange}
-                  placeholder="e.g. Royal Enfield Classic 350"
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+            <label className="flex items-center gap-3 cursor-pointer mb-3">
+              <div className="relative">
+                <input type="checkbox" className="sr-only" checked={form.has_bike}
+                  onChange={(e) => setForm({ ...form, has_bike: e.target.checked, bike_model: "", bike_number: "" })} />
+                <div className={`w-10 h-6 rounded-full transition ${form.has_bike ? "bg-green-500" : "bg-gray-200"}`} />
+                <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.has_bike ? "translate-x-4" : ""}`} />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Number Plate</label>
-                <input name="bike_number" value={form.bike_number} onChange={handleChange}
-                  placeholder="e.g. KA 01 AB 1234"
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 uppercase"
-                  style={{ textTransform: "uppercase" }} />
+              <span className="text-sm font-semibold text-gray-700">🏍️ I own a bike</span>
+            </label>
+
+            {form.has_bike && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Bike Model</label>
+                  <input name="bike_model" value={form.bike_model} onChange={handleChange}
+                    placeholder="e.g. Royal Enfield Classic 350"
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Number Plate</label>
+                  <input name="bike_number" value={form.bike_number} onChange={handleChange}
+                    placeholder="e.g. KA 01 AB 1234"
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    style={{ textTransform: "uppercase" }} />
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {error && <p className="text-red-500 text-sm">{error}</p>}
