@@ -17,6 +17,7 @@ interface Ride {
   status: string;
   bike_model?: string;
   notes?: string;
+  suggested_fare?: number;
   origin_lat?: number;
   origin_lon?: number;
   destination_lat?: number;
@@ -28,6 +29,9 @@ interface RideRequest {
   requester_id: string;
   status: string;
   message?: string;
+  suggested_fare?: number;
+  offered_fare?: number;
+  agreed_fare?: number;
 }
 
 export default function RideDetailPage() {
@@ -35,8 +39,11 @@ export default function RideDetailPage() {
   const router = useRouter();
   const [ride, setRide] = useState<Ride | null>(null);
   const [requests, setRequests] = useState<RideRequest[]>([]);
+  const [myRequest, setMyRequest] = useState<RideRequest | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [offerFare, setOfferFare] = useState("");
+  const [counterFare, setCounterFare] = useState("");
   const [loading, setLoading] = useState(true);
   const [actionMsg, setActionMsg] = useState("");
   const [originCoords, setOriginCoords] = useState<[number, number] | undefined>();
@@ -49,7 +56,6 @@ export default function RideDetailPage() {
       const rideData = await apiFetch<Ride>(`/rides/${id}`).catch(() => null);
       setRide(rideData);
       if (rideData) {
-        // Use stored coords or geocode from text
         if (rideData.origin_lat && rideData.origin_lon) {
           setOriginCoords([rideData.origin_lat, rideData.origin_lon]);
         } else {
@@ -72,13 +78,33 @@ export default function RideDetailPage() {
 
   async function handleRequest() {
     try {
-      await apiFetch(`/rides/${id}/requests`, {
+      const req = await apiFetch<RideRequest>(`/rides/${id}/requests`, {
         method: "POST",
-        body: JSON.stringify({ ride_id: id, message }),
+        body: JSON.stringify({
+          ride_id: id,
+          message,
+          offered_fare: offerFare ? Number(offerFare) : undefined,
+        }),
       });
+      setMyRequest(req);
       setActionMsg("Request sent successfully!");
     } catch (err: unknown) {
       setActionMsg(err instanceof Error ? err.message : "Failed to send request");
+    }
+  }
+
+  async function handleNegotiate() {
+    if (!myRequest || !counterFare) return;
+    try {
+      const updated = await apiFetch<RideRequest>(`/rides/${id}/requests/${myRequest.id}/negotiate`, {
+        method: "PATCH",
+        body: JSON.stringify({ offered_fare: Number(counterFare) }),
+      });
+      setMyRequest(updated);
+      setCounterFare("");
+      setActionMsg("Counter-offer sent!");
+    } catch (err: unknown) {
+      setActionMsg(err instanceof Error ? err.message : "Failed to negotiate");
     }
   }
 
@@ -117,9 +143,19 @@ export default function RideDetailPage() {
             {ride.notes && <p>📝 {ride.notes}</p>}
           </div>
 
+          {/* Fare display */}
+          {ride.suggested_fare ? (
+            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-800">Suggested Fare</p>
+                <p className="text-xs text-green-600">Negotiable</p>
+              </div>
+              <p className="text-2xl font-bold text-green-700">₹{ride.suggested_fare}</p>
+            </div>
+          ) : null}
+
           {isOwner && ride.status === "open" && (
-            <button onClick={handleCancel}
-              className="mt-4 text-sm text-red-500 hover:text-red-700 underline">
+            <button onClick={handleCancel} className="mt-4 text-sm text-red-500 hover:text-red-700 underline">
               Cancel this ride
             </button>
           )}
@@ -135,20 +171,58 @@ export default function RideDetailPage() {
           />
         </div>
 
-        {!isOwner && ride.status === "open" && (
+        {/* Passenger: request form */}
+        {!isOwner && ride.status === "open" && !myRequest && (
           <div className="bg-white rounded-xl shadow p-6 mb-6">
             <h2 className="font-semibold mb-3">Request this ride</h2>
             <textarea value={message} onChange={(e) => setMessage(e.target.value)}
               placeholder="Optional message to the rider..."
-              className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500" rows={3} />
+              className="w-full border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500 mb-3" rows={2} />
+            <div className="flex gap-2 items-center mb-3">
+              <span className="text-sm text-gray-500 shrink-0">Counter-offer fare (₹)</span>
+              <input type="number" value={offerFare} onChange={(e) => setOfferFare(e.target.value)}
+                placeholder={ride.suggested_fare ? `Suggested: ₹${ride.suggested_fare}` : "Optional"}
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
             <button onClick={handleRequest}
-              className="mt-3 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700">
+              className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700">
               Send Request
             </button>
             {actionMsg && <p className="text-sm mt-2 text-green-600">{actionMsg}</p>}
           </div>
         )}
 
+        {/* Passenger: my request status */}
+        {!isOwner && myRequest && (
+          <div className="bg-white rounded-xl shadow p-6 mb-6">
+            <h2 className="font-semibold mb-3">Your Request</h2>
+            <div className="space-y-2 text-sm text-gray-600">
+              {myRequest.suggested_fare && <p>Rider suggested: <span className="font-medium text-gray-800">₹{myRequest.suggested_fare}</span></p>}
+              {myRequest.offered_fare && <p>Your offer: <span className="font-medium text-gray-800">₹{myRequest.offered_fare}</span></p>}
+              {myRequest.agreed_fare && <p className="text-green-700 font-medium">Agreed fare: ₹{myRequest.agreed_fare}</p>}
+            </div>
+            <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full font-medium ${
+              myRequest.status === "accepted" ? "bg-green-100 text-green-700" :
+              myRequest.status === "rejected" ? "bg-red-100 text-red-700" :
+              "bg-yellow-100 text-yellow-700"
+            }`}>{myRequest.status}</span>
+
+            {myRequest.status === "pending" && (
+              <div className="mt-3 flex gap-2 items-center">
+                <input type="number" value={counterFare} onChange={(e) => setCounterFare(e.target.value)}
+                  placeholder="New counter-offer (₹)"
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                <button onClick={handleNegotiate}
+                  className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-green-700">
+                  Counter-offer
+                </button>
+              </div>
+            )}
+            {actionMsg && <p className="text-sm mt-2 text-green-600">{actionMsg}</p>}
+          </div>
+        )}
+
+        {/* Rider: incoming requests */}
         {isOwner && requests.length > 0 && (
           <div className="bg-white rounded-xl shadow p-6">
             <h2 className="font-semibold mb-4">Ride Requests ({requests.length})</h2>
@@ -157,6 +231,11 @@ export default function RideDetailPage() {
                 <div key={req.id} className="border rounded-lg p-3">
                   <p className="text-sm text-gray-500 mb-1">User: {req.requester_id.slice(0, 8)}...</p>
                   {req.message && <p className="text-sm mb-2">{req.message}</p>}
+                  <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-2">
+                    {req.suggested_fare && <span>Suggested: <strong>₹{req.suggested_fare}</strong></span>}
+                    {req.offered_fare && <span>Offered: <strong className="text-blue-600">₹{req.offered_fare}</strong></span>}
+                    {req.agreed_fare && <span className="text-green-700 font-medium">Agreed: ₹{req.agreed_fare}</span>}
+                  </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
                       req.status === "accepted" ? "bg-green-100 text-green-700" :

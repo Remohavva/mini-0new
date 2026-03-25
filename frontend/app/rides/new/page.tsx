@@ -6,23 +6,49 @@ import Navbar from "@/components/Navbar";
 import LocationSearch from "@/components/LocationSearch";
 import RideMapWrapper from "@/components/RideMapWrapper";
 
+const RATE_PER_KM = 4;
+const MIN_FARE = 20;
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export default function NewRidePage() {
   const router = useRouter();
   const [form, setForm] = useState({
-    origin: "",
-    destination: "",
-    departure_time: "",
-    available_seats: 1,
-    bike_model: "",
-    notes: "",
+    origin: "", destination: "", departure_time: "",
+    available_seats: 1, bike_model: "", notes: "",
   });
   const [originCoords, setOriginCoords] = useState<[number, number] | undefined>();
   const [destinationCoords, setDestinationCoords] = useState<[number, number] | undefined>();
+  const [suggestedFare, setSuggestedFare] = useState<number | null>(null);
+  const [fareKm, setFareKm] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  function handleLocationChange(key: "origin" | "destination", val: string, coords?: [number, number]) {
+    setForm((f) => ({ ...f, [key]: val }));
+    if (key === "origin") setOriginCoords(coords);
+    else setDestinationCoords(coords);
+    // Recalculate fare if both coords available
+    const o = key === "origin" ? coords : originCoords;
+    const d = key === "destination" ? coords : destinationCoords;
+    if (o && d) {
+      const km = haversineKm(o[0], o[1], d[0], d[1]);
+      setFareKm(Math.round(km * 10) / 10);
+      setSuggestedFare(Math.max(Math.round(km * RATE_PER_KM), MIN_FARE));
+    } else {
+      setSuggestedFare(null);
+      setFareKm(null);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -40,6 +66,7 @@ export default function NewRidePage() {
           origin_lon: originCoords?.[1],
           destination_lat: destinationCoords?.[0],
           destination_lon: destinationCoords?.[1],
+          suggested_fare: suggestedFare ?? 0,
         }),
       });
       router.push(`/rides/${ride.id}`);
@@ -61,7 +88,7 @@ export default function NewRidePage() {
               <LocationSearch
                 placeholder="e.g. Koramangala, Bangalore"
                 value={form.origin}
-                onChange={(val, coords) => { setForm((f) => ({ ...f, origin: val })); setOriginCoords(coords); }}
+                onChange={(val, coords) => handleLocationChange("origin", val, coords)}
               />
             </div>
             <div>
@@ -69,9 +96,21 @@ export default function NewRidePage() {
               <LocationSearch
                 placeholder="e.g. Whitefield, Bangalore"
                 value={form.destination}
-                onChange={(val, coords) => { setForm((f) => ({ ...f, destination: val })); setDestinationCoords(coords); }}
+                onChange={(val, coords) => handleLocationChange("destination", val, coords)}
               />
             </div>
+
+            {/* Fare display */}
+            {suggestedFare !== null && (
+              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-green-800">Suggested Fare</p>
+                  <p className="text-xs text-green-600">{fareKm} km · ₹{RATE_PER_KM}/km · min ₹{MIN_FARE}</p>
+                </div>
+                <p className="text-2xl font-bold text-green-700">₹{suggestedFare}</p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium mb-1">Departure Time</label>
               <input type="datetime-local" name="departure_time" required value={form.departure_time} onChange={handleChange}
@@ -101,7 +140,6 @@ export default function NewRidePage() {
             </button>
           </form>
 
-          {/* Live map preview */}
           <RideMapWrapper
             origin={form.origin}
             destination={form.destination}
