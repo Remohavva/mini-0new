@@ -83,7 +83,15 @@ def get_ride_requests(ride_id: str, current_user=Depends(get_current_user)):
     if not ride.data or ride.data["rider_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     res = supabase.table("ride_requests").select("*").eq("ride_id", ride_id).execute()
-    return res.data or []
+    requests = res.data or []
+    # Fetch requester names in one query
+    if requests:
+        requester_ids = list({r["requester_id"] for r in requests})
+        profiles = supabase.table("profiles").select("id,full_name").in_("id", requester_ids).execute()
+        name_map = {p["id"]: p["full_name"] for p in (profiles.data or [])}
+        for r in requests:
+            r["requester_name"] = name_map.get(r["requester_id"], "Unknown")
+    return requests
 
 @router.patch("/{ride_id}/requests/{request_id}")
 def respond_to_request(ride_id: str, request_id: str, action: str = Query(..., regex="^(accept|reject)$"), current_user=Depends(get_current_user)):

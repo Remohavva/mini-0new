@@ -67,6 +67,7 @@ class RideRequestResponse(BaseModel):
     id: str
     ride_id: str
     requester_id: str
+    requester_name: Optional[str] = None
     status: str
     message: Optional[str]
     suggested_fare: Optional[int]

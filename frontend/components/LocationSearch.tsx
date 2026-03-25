@@ -47,13 +47,15 @@ export default function LocationSearch({ placeholder, value, onChange }: Props) 
       <input
         value={query}
         onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); }}
+        onFocus={() => results.length > 0 && setOpen(true)}
         placeholder={placeholder}
         className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
       />
       {open && results.length > 0 && (
-        <ul className="absolute z-50 w-full bg-white border rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+        <ul className="absolute z-[100] w-full bg-white border rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
           {results.map((r, i) => (
-            <li key={i} onClick={() => handleSelect(r)}
+            <li key={i}
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(r); }}
               className="px-3 py-2 text-sm hover:bg-green-50 cursor-pointer truncate">
               📍 {r.display_name}
             </li>

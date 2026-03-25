@@ -27,6 +27,7 @@ interface Ride {
 interface RideRequest {
   id: string;
   requester_id: string;
+  requester_name?: string;
   status: string;
   message?: string;
   suggested_fare?: number;
@@ -229,7 +230,7 @@ export default function RideDetailPage() {
             <div className="space-y-3">
               {requests.map((req) => (
                 <div key={req.id} className="border rounded-lg p-3">
-                  <p className="text-sm text-gray-500 mb-1">User: {req.requester_id.slice(0, 8)}...</p>
+                  <p className="text-sm font-medium text-gray-800 mb-1">{req.requester_name ?? req.requester_id.slice(0, 8) + "..."}</p>
                   {req.message && <p className="text-sm mb-2">{req.message}</p>}
                   <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-2">
                     {req.suggested_fare && <span>Suggested: <strong>₹{req.suggested_fare}</strong></span>}
