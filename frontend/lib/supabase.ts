@@ -8,6 +8,10 @@ export const supabase = createBrowserClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
+      lock: async (name, acquireTimeout, fn) => {
+        // Use a simple non-locking implementation to avoid lock contention errors
+        return fn();
+      },
     },
   }
 );
