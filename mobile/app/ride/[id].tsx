@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 import RatingStars from "@/components/RatingStars";
 
 interface Ride { id: string; rider_id: string; origin: string; destination: string; departure_time: string; available_seats: number; status: string; bike_model?: string; notes?: string; suggested_fare?: number; }
-interface RideRequest { id: string; requester_id: string; status: string; message?: string; suggested_fare?: number; offered_fare?: number; agreed_fare?: number; }
+interface RideRequest { id: string; requester_id: string; requester_name?: string; status: string; message?: string; suggested_fare?: number; offered_fare?: number; agreed_fare?: number; }
 interface RatingMine {
   id: string;
   ride_id: string;
@@ -289,7 +289,10 @@ export default function RideDetailScreen() {
             <Text style={styles.sectionTitle}>Ride Requests ({requests.length})</Text>
             {requests.map((req) => (
               <View key={req.id} style={styles.reqRow}>
-                <Text style={styles.meta}>User: {req.requester_id.slice(0, 8)}...</Text>
+                <TouchableOpacity onPress={() => router.push(`/user/${req.requester_id}` as never)}>
+                  <Text style={styles.requesterName}>{req.requester_name ?? req.requester_id.slice(0, 8) + "..."}</Text>
+                  <Text style={styles.viewProfile}>View Profile →</Text>
+                </TouchableOpacity>
                 {req.message && <Text style={styles.meta}>"{req.message}"</Text>}
                 {req.offered_fare && <Text style={styles.meta}>💰 Offered: ₹{req.offered_fare} {req.suggested_fare ? `(suggested ₹${req.suggested_fare})` : ""}</Text>}
                 {req.agreed_fare && <Text style={[styles.meta, { color: "#16a34a", fontWeight: "700" }]}>✅ Agreed: ₹{req.agreed_fare}</Text>}
@@ -434,6 +437,8 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 13, alignItems: "center" },
   btnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   reqRow: { borderTopWidth: 1, borderTopColor: "#f3f4f6", paddingTop: 10, marginTop: 10 },
+  requesterName: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  viewProfile: { fontSize: 12, color: "#16a34a", fontWeight: "600", marginTop: 2, marginBottom: 6 },
   reqActions: { flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" },
   statusBadge: { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
   statusGreen: { backgroundColor: "#dcfce7" },
