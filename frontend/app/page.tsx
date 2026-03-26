@@ -1,35 +1,48 @@
 import Link from "next/link";
+import ScrollStack, { ScrollStackItem } from "@/components/ScrollStack";
 
 const features = [
   {
     icon: "🛣️",
     title: "Find rides instantly",
     desc: "Search by origin and destination. See live routes on a map before you commit.",
+    bg: "bg-blue-600",
+    text: "text-white",
   },
   {
     icon: "🏍️",
     title: "Offer your seat",
     desc: "Heading somewhere? Post your ride in seconds and split the commute.",
+    bg: "bg-slate-900",
+    text: "text-white",
   },
   {
-    icon: "🎓",
-    title: "Built for campuses & offices",
-    desc: "Designed for college students and corporate employees who share the same route daily.",
+    icon: "💰",
+    title: "Fair fare system",
+    desc: "Ride cost is auto-calculated by distance. Riders and passengers can negotiate the final amount before confirming.",
+    bg: "bg-indigo-500",
+    text: "text-white",
   },
   {
     icon: "🗺️",
     title: "Live map & routing",
     desc: "Powered by OpenStreetMap. See distance, duration, and the exact route — no guessing.",
+    bg: "bg-sky-500",
+    text: "text-white",
   },
   {
     icon: "🔒",
     title: "Verified community",
     desc: "Sign up with your college or company email. Ride with people you already trust.",
+    bg: "bg-violet-600",
+    text: "text-white",
   },
   {
-    icon: "�",
-    title: "Fair fare system",
-    desc: "Ride cost is auto-calculated by distance. Riders and passengers can negotiate the final amount before confirming.",
+    icon: "🎓",
+    title: "Built for campuses & offices",
+    desc: "Designed for college students and corporate employees who share the same route daily.",
+    bg: "bg-emerald-600",
+    text: "text-white",
   },
 ];
 
@@ -48,12 +61,10 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <span className="text-xl font-bold tracking-tight text-blue-600">🏍️ Pillion</span>
           <div className="flex items-center gap-3">
-            <Link href="/auth/login"
-              className="text-sm text-slate-600 hover:text-slate-900 transition px-3 py-1.5">
+            <Link href="/auth/login" className="text-sm text-slate-600 hover:text-slate-900 transition px-3 py-1.5">
               Sign in
             </Link>
-            <Link href="/auth/signup"
-              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition">
+            <Link href="/auth/signup" className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition">
               Get started
             </Link>
           </div>
@@ -74,18 +85,16 @@ export default function LandingPage() {
             Pillion connects people heading the same way. Share rides, cut costs, and build community — one commute at a time.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth/signup"
-              className="px-8 py-3.5 bg-blue-600 text-white rounded-lg font-semibold text-base hover:bg-blue-700 transition shadow-lg">
+            <Link href="/auth/signup" className="px-8 py-3.5 bg-blue-600 text-white rounded-lg font-semibold text-base hover:bg-blue-700 transition shadow-lg">
               Start pooling free
             </Link>
-            <Link href="/rides"
-              className="px-8 py-3.5 border border-slate-300 text-slate-700 rounded-lg font-semibold text-base hover:border-blue-400 hover:text-blue-600 transition">
+            <Link href="/rides" className="px-8 py-3.5 border border-slate-300 text-slate-700 rounded-lg font-semibold text-base hover:border-blue-400 hover:text-blue-600 transition">
               Browse rides →
             </Link>
           </div>
         </div>
 
-        {/* Hero visual */}
+        {/* Stats */}
         <div className="relative mt-20 max-w-5xl mx-auto">
           <div className="bg-slate-50 rounded-2xl border border-slate-200 p-8 shadow-sm">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -105,14 +114,33 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features — ScrollStack */}
       <section className="py-24 px-6 bg-slate-50" id="features">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4 text-slate-900">Everything you need to pool</h2>
             <p className="text-slate-600 text-lg max-w-xl mx-auto">Simple, fast, and built around how real commuters think.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+          {/* ScrollStack — desktop only */}
+          <div className="hidden lg:block h-[600px]">
+            <ScrollStack itemDistance={80} baseScale={0.88} itemStackDistance={24} stackPosition="25%">
+              {features.map((f) => (
+                <ScrollStackItem key={f.title} itemClassName={`${f.bg} ${f.text}`}>
+                  <div className="flex items-start gap-6 h-full">
+                    <span className="text-5xl shrink-0">{f.icon}</span>
+                    <div>
+                      <h3 className="text-2xl font-bold mb-3">{f.title}</h3>
+                      <p className="text-base opacity-80 leading-relaxed max-w-lg">{f.desc}</p>
+                    </div>
+                  </div>
+                </ScrollStackItem>
+              ))}
+            </ScrollStack>
+          </div>
+
+          {/* Fallback grid — mobile */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 lg:hidden">
             {features.map((f) => (
               <div key={f.title} className="bg-white rounded-xl p-6 border border-slate-200 hover:border-blue-300 hover:shadow-md transition group">
                 <div className="text-3xl mb-4">{f.icon}</div>
@@ -132,7 +160,7 @@ export default function LandingPage() {
             <p className="text-slate-600 text-lg">Three steps and you&apos;re on the road.</p>
           </div>
           <div className="space-y-8">
-            {steps.map((s, i) => (
+            {steps.map((s) => (
               <div key={s.step} className="flex gap-6 items-start">
                 <div className="shrink-0 w-14 h-14 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
                   {s.step}
@@ -141,9 +169,6 @@ export default function LandingPage() {
                   <h3 className="font-semibold text-xl text-slate-900 mb-2">{s.title}</h3>
                   <p className="text-slate-600 text-sm leading-relaxed">{s.desc}</p>
                 </div>
-                {i < steps.length - 1 && (
-                  <div className="hidden sm:block absolute left-7 mt-14 w-0.5 h-6 bg-slate-200" />
-                )}
               </div>
             ))}
           </div>
@@ -159,8 +184,7 @@ export default function LandingPage() {
           <p className="text-slate-300 text-lg mb-8 max-w-md mx-auto">
             Join thousands of students and professionals already sharing their commute — and splitting costs fairly.
           </p>
-          <Link href="/auth/signup"
-            className="inline-block px-10 py-4 bg-blue-600 text-white rounded-lg font-bold text-base hover:bg-blue-700 transition shadow-lg">
+          <Link href="/auth/signup" className="inline-block px-10 py-4 bg-blue-600 text-white rounded-lg font-bold text-base hover:bg-blue-700 transition shadow-lg">
             Create free account
           </Link>
         </div>
