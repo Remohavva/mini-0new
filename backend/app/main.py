@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import rides, users, ratings, notifications, bikes, emergency
+from app.routes import rides, users, ratings, notifications, bikes, emergency, verification
 import os
 
 app = FastAPI(title="Pillion API", version="1.0.0")
@@ -27,6 +27,7 @@ app.include_router(ratings.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(bikes.router, prefix="/api")
 app.include_router(emergency.router, prefix="/api")
+app.include_router(verification.router, prefix="/api")
 
 @app.get("/")
 def root():

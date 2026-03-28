@@ -8,6 +8,7 @@ import Image from "next/image";
 import Link from "next/link";
 import RatingStars from "@/components/RatingStars";
 import SOSButton from "@/components/SOSButton";
+import VerificationBadge from "@/components/VerificationBadge";
 
 interface Profile {
   id: string;
