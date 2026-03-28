@@ -41,6 +41,9 @@ export default function ProfilePage() {
   const [avgRating, setAvgRating] = useState<{ avg_rating: number; total: number } | null>(null);
   const [emergencyContact, setEmergencyContact] = useState({ name: "", phone: "" });
   const [savingContact, setSavingContact] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<string>("unverified");
+  const [uploadingLicense, setUploadingLicense] = useState(false);
+  const licenseRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ full_name: "", phone: "", college_or_company: "", bike_model: "", bike_number: "" });
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -71,6 +74,7 @@ export default function ProfilePage() {
         apiFetch<Ride[]>("/rides/my").then(setMyRides).catch(() => {});
         apiFetch<{ avg_rating: number; total: number }>(`/ratings/user/${data.user.id}`).then(setAvgRating).catch(() => {});
         apiFetch<{ name: string; phone: string } | null>("/emergency/contact").then((c) => { if (c) setEmergencyContact(c); }).catch(() => {});
+        apiFetch<{ verification_status: string }>("/verification/status").then((v) => setVerificationStatus(v.verification_status)).catch(() => {});
         // Auto-fetch bike image if model set but no image yet
         if (p.bike_model && !p.bike_image_url) {
           apiFetch<{ image_url: string | null }>(`/bikes/save-image?model=${encodeURIComponent(p.bike_model)}`, { method: "POST" })
@@ -100,7 +104,19 @@ export default function ProfilePage() {
     setUploading(false);
   }
 
-  async function handleSave() {
+  async function handleLicenseUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+    setUploadingLicense(true);
+    const path = `${profile.id}/license.${file.name.split(".").pop()}`;
+    const { error } = await supabase.storage.from("licenses").upload(path, file, { upsert: true });
+    if (error) { setMsg("Upload failed: " + error.message); setUploadingLicense(false); return; }
+    const { data } = supabase.storage.from("licenses").getPublicUrl(path);
+    await apiFetch("/verification/submit", { method: "POST", body: JSON.stringify({ license_url: data.publicUrl }) });
+    setVerificationStatus("pending");
+    setMsg("License uploaded. Verification pending review.");
+    setUploadingLicense(false);
+  }
     setSaving(true);
     setMsg("");
     try {
@@ -298,6 +314,30 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+        {/* Rider Verification */}
+        <div className="bg-white rounded-2xl shadow p-6 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Rider Verification</h2>
+            <VerificationBadge status={verificationStatus} />
+          </div>
+          {verificationStatus === "unverified" || verificationStatus === "rejected" ? (
+            <div>
+              <p className="text-sm text-gray-500 mb-3">
+                Upload your driving license to get a verified badge on your profile and rides.
+              </p>
+              <input ref={licenseRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleLicenseUpload} />
+              <button onClick={() => licenseRef.current?.click()} disabled={uploadingLicense}
+                className="w-full border-2 border-dashed border-blue-300 text-blue-600 py-3 rounded-xl text-sm font-medium hover:bg-blue-50 transition disabled:opacity-50">
+                {uploadingLicense ? "Uploading..." : "📄 Upload Driving License"}
+              </button>
+            </div>
+          ) : verificationStatus === "pending" ? (
+            <p className="text-sm text-yellow-600">Your license is under review. We'll notify you once verified.</p>
+          ) : (
+            <p className="text-sm text-green-600">Your identity is verified. Passengers can trust you!</p>
+          )}
+        </div>
+
         {/* Emergency Contact + SOS */}
         <div className="bg-white rounded-2xl shadow p-6 mt-6 border border-red-100">
           <h2 className="text-lg font-bold mb-4 text-red-600">🆘 Emergency Contact</h2>
