@@ -294,6 +294,13 @@ export default function RideDetailPage() {
           />
         </div>
 
+        {/* SOS button — shown during active ride */}
+        {ride.status === "started" && (
+          <div className="mb-6">
+            <SOSButton rideId={ride.id} />
+          </div>
+        )}
+
         {/* Passenger: request form */}
         {!isOwner && ride.status === "open" && !myRequest && (
           <div className="bg-white rounded-xl shadow p-6 mb-6">
