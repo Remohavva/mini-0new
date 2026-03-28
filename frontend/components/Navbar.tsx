@@ -95,6 +95,14 @@ export default function Navbar() {
               className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition">
               👤 View Profile
             </Link>
+            <Link href="/leaderboard" onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-amber-500 transition">
+              🏆 Leaderboard
+            </Link>
+            <Link href="/admin" onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition">
+              📊 Admin Dashboard
+            </Link>
             <button onClick={handleLogout}
               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition">
               🚪 Logout

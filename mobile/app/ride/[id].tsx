@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 import RatingStars from "@/components/RatingStars";
 
-interface Ride { id: string; rider_id: string; origin: string; destination: string; departure_time: string; available_seats: number; status: string; bike_model?: string; notes?: string; suggested_fare?: number; }
+interface Ride { id: string; rider_id: string; origin: string; destination: string; departure_time: string; available_seats: number; status: string; bike_model?: string; notes?: string; suggested_fare?: number; current_lat?: number; current_lon?: number; }
 interface RideRequest { id: string; requester_id: string; requester_name?: string; status: string; message?: string; suggested_fare?: number; offered_fare?: number; agreed_fare?: number; }
 interface RatingMine {
   id: string;
@@ -63,6 +63,45 @@ export default function RideDetailScreen() {
     }
     load();
   }, [id]);
+
+  useEffect(() => {
+    // Real-time listener for Live Location Tracking
+    if (!ride || ride.status !== "started") return;
+
+    const channel = supabase
+      .channel(`ride_location_${id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${id}` },
+        (payload) => {
+          if (payload.new && payload.new.current_lat && payload.new.current_lon) {
+            setRide((prev) => prev ? { ...prev, current_lat: payload.new.current_lat, current_lon: payload.new.current_lon } : prev);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [ride?.status, id]);
+
+  const [broadcasting, setBroadcasting] = useState(false);
+  useEffect(() => {
+    // Simulated GPS broadcaster for riders
+    const owner = !!ride && !!currentUserId && currentUserId === ride.rider_id;
+    if (!broadcasting || !owner || ride?.status !== "started") return;
+    let lat = ride?.current_lat || 12.9716;
+    let lon = ride?.current_lon || 77.5946;
+
+    const interval = setInterval(async () => {
+      lat += 0.0001; // simulate movement
+      lon += 0.0001;
+      await supabase.from("rides").update({ current_lat: lat, current_lon: lon }).eq("id", id);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [broadcasting, currentUserId, ride?.rider_id, ride?.status, id]);
 
   useEffect(() => {
     // Only fetch rating after ride is completed so the backend allows rating.
@@ -253,6 +292,15 @@ export default function RideDetailScreen() {
               <Text style={styles.fareNote}>Negotiable between rider and passenger</Text>
             </View>
           )}
+
+          {ride.status === "started" && (ride.current_lat || ride.current_lon) && !isOwner && (
+            <View style={styles.liveLocationBox}>
+              <Text style={styles.liveLocationTitle}>📍 Live Location Tracking</Text>
+              <Text style={styles.liveLocationData}>Current Lat: {ride.current_lat?.toFixed(5)}</Text>
+              <Text style={styles.liveLocationData}>Current Lon: {ride.current_lon?.toFixed(5)}</Text>
+              <Text style={styles.liveLocationNote}>Map view requires native 'react-native-maps'</Text>
+            </View>
+          )}
         </View>
 
         {/* Passenger: request form */}
@@ -325,9 +373,16 @@ export default function RideDetailScreen() {
               </TouchableOpacity>
             )}
             {ride.status === "started" && (
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleComplete}>
-                <Text style={styles.primaryBtnText}>✅ Complete Ride</Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: broadcasting ? "#fee2e2" : "#dbeafe", borderWidth: 1, borderColor: broadcasting ? "#f87171" : "#60a5fa" }]} onPress={() => setBroadcasting(!broadcasting)}>
+                  <Text style={[styles.primaryBtnText, { color: broadcasting ? "#ef4444" : "#2563eb" }]}>
+                    {broadcasting ? "🛑 Stop Location Broadcast" : "📡 Broadcast Live Location"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.primaryBtn} onPress={handleComplete}>
+                  <Text style={styles.primaryBtnText}>✅ Complete Ride</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         )}
@@ -431,6 +486,10 @@ const styles = StyleSheet.create({
   fareLabel: { fontSize: 11, color: "#16a34a", fontWeight: "600" },
   fareValue: { fontSize: 28, fontWeight: "800", color: "#15803d" },
   fareNote: { fontSize: 11, color: "#6b7280", marginTop: 2 },
+  liveLocationBox: { backgroundColor: "#eff6ff", padding: 12, borderRadius: 10, marginTop: 12, borderWidth: 1, borderColor: "#bfdbfe" },
+  liveLocationTitle: { fontSize: 13, fontWeight: "700", color: "#1e3a8a", marginBottom: 4 },
+  liveLocationData: { fontSize: 13, color: "#2563eb", fontFamily: "monospace" },
+  liveLocationNote: { fontSize: 10, color: "#93c5fd", marginTop: 4, fontStyle: "italic" },
   sectionTitle: { fontSize: 15, fontWeight: "700", color: "#111827", marginBottom: 10 },
   label: { fontSize: 12, fontWeight: "600", color: "#374151", marginBottom: 4 },
   input: { backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, marginBottom: 10, color: "#111827" },

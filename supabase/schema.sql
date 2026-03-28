@@ -9,6 +9,14 @@ create table public.profiles (
   college_or_company text not null,
   phone text,
   avatar_url text,
+  completed_rides int default 0,
+  co2_saved_kg float default 0,
+  rating float default 5.0,
+  ratings_count int default 0,
+  credits int default 0,
+  referral_code text unique,
+  referred_by uuid references public.profiles(id),
+  upi_id text,
   created_at timestamptz default now()
 );
 
@@ -33,6 +41,8 @@ create table public.rides (
   destination_lon float,
   started_at timestamptz,
   completed_at timestamptz,
+  current_lat float,
+  current_lon float,
   created_at timestamptz default now()
 );
 
@@ -127,3 +137,18 @@ create policy "Users can send ride messages" on public.ride_messages for insert
       )
     )
   );
+
+-- Saved Locations table for Home, Office, College, etc.
+create table public.saved_locations (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  name text not null check (name in ('Home', 'Office', 'College', 'Other')),
+  address text not null,
+  lat float not null,
+  lon float not null,
+  created_at timestamptz default now()
+);
+
+alter table public.saved_locations enable row level security;
+create policy "Users can manage own saved locations" on public.saved_locations
+  for all using (auth.uid() = user_id);

@@ -21,6 +21,8 @@ interface Profile {
   bike_model?: string;
   bike_number?: string;
   bike_image_url?: string;
+  referral_code?: string;
+  credits?: number;
 }
 
 interface Ride {
@@ -117,6 +119,7 @@ export default function ProfilePage() {
     setMsg("License uploaded. Verification pending review.");
     setUploadingLicense(false);
   }
+  async function handleSave() {
     setSaving(true);
     setMsg("");
     try {
@@ -314,6 +317,39 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+
+        {/* Referrals & Credits */}
+        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl shadow p-6 mt-6 border border-indigo-100">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-indigo-900 mb-1">🎁 Invite & Earn</h2>
+              <p className="text-sm text-indigo-700">Invite friends and you both get ₹50 ride credits!</p>
+            </div>
+            <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-indigo-100 text-center">
+              <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Your Credits</p>
+              <p className="text-2xl font-black text-indigo-600">₹{profile.credits || 0}</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-indigo-100 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="w-full">
+              <p className="text-xs text-gray-500 mb-1 font-medium">Your Invite Code</p>
+              <div className="bg-gray-100 flex items-center justify-between rounded-lg px-3 py-2 font-mono text-lg font-bold tracking-widest text-indigo-800">
+                {profile.referral_code || "Pillion" + profile.id.substring(0, 4).toUpperCase()}
+                <button 
+                  onClick={() => navigator.clipboard.writeText(profile.referral_code || "Pillion" + profile.id.substring(0, 4).toUpperCase())}
+                  className="text-sm bg-white border border-gray-200 px-3 py-1 rounded shadow-sm text-gray-600 hover:text-indigo-600 transition"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            <button className="w-full sm:w-auto shrink-0 bg-indigo-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-indigo-700 transition shadow-md">
+              Share Link
+            </button>
+          </div>
+        </div>
+
         {/* Rider Verification */}
         <div className="bg-white rounded-2xl shadow p-6 mt-6">
           <div className="flex items-center justify-between mb-4">

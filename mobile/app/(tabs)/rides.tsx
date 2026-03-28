@@ -24,7 +24,7 @@ export default function RidesScreen() {
 
   async function fetchRides() {
     setLoading(true);
-    const params = new URLSearchParams({ status: "open" });
+    const params = new URLSearchParams({ status: "open", match_suggestions: "true" });
     if (origin) params.set("origin", origin);
     if (destination) params.set("destination", destination);
     const data = await apiFetch<Ride[]>(`/rides/?${params}`).catch(() => []);
@@ -53,9 +53,13 @@ export default function RidesScreen() {
       {loading ? (
         <ActivityIndicator color="#16a34a" style={{ marginTop: 40 }} />
       ) : (
-        <FlatList
-          data={rides}
-          keyExtractor={(r) => r.id}
+        <>
+          {rides.length > 0 && !origin && !destination && (
+            <Text style={styles.smartBadge}>✨ Smart Matches (by Campus & Location)</Text>
+          )}
+          <FlatList
+            data={rides}
+            keyExtractor={(r) => r.id}
           contentContainerStyle={styles.list}
           ListEmptyComponent={<Text style={styles.empty}>No rides found.</Text>}
           renderItem={({ item }) => (
@@ -85,6 +89,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#111827" },
   searchBtn: { backgroundColor: "#16a34a", borderRadius: 10, paddingHorizontal: 16, justifyContent: "center" },
   searchBtnText: { color: "#fff", fontWeight: "700" },
+  smartBadge: { fontSize: 12, color: "#16a34a", paddingHorizontal: 20, marginBottom: 8, fontWeight: "600" },
   list: { paddingHorizontal: 16, paddingBottom: 20 },
   empty: { textAlign: "center", color: "#9ca3af", marginTop: 40 },
   card: { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#f3f4f6" },

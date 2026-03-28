@@ -8,6 +8,9 @@ import RideMapWrapper from "@/components/RideMapWrapper";
 import RatingStars from "@/components/RatingStars";
 import SOSButton from "@/components/SOSButton";
 import { geocode } from "@/lib/geocode";
+import WeatherWidget from "@/components/WeatherWidget";
+import UPIPaymentWidget from "@/components/UPIPaymentWidget";
+import FareSplitWidget from "@/components/FareSplitWidget";
 
 interface Ride {
   id: string;
@@ -248,7 +251,14 @@ export default function RideDetailPage() {
             {ride.notes && <p>📝 {ride.notes}</p>}
           </div>
 
-          {/* Fare display */}
+          {!isOwner && ride.status === "open" && ride.origin_lat && ride.origin_lon && (
+             <div className="mt-4 flex flex-col gap-2">
+               <WeatherWidget lat={ride.origin_lat} lon={ride.origin_lon} label="Origin" />
+               <WeatherWidget lat={ride.destination_lat} lon={ride.destination_lon} label="Destination" />
+             </div>
+          )}
+
+          {/* Fare display and split */}
           {ride.suggested_fare ? (
             <div className="mt-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center justify-between">
               <div>
@@ -258,6 +268,12 @@ export default function RideDetailPage() {
               <p className="text-2xl font-bold text-green-700">₹{ride.suggested_fare}</p>
             </div>
           ) : null}
+
+          {!isOwner && ride.suggested_fare && ride.status === "open" && !myRequest && (
+            <div className="mt-3">
+              <FareSplitWidget totalFare={ride.suggested_fare} />
+            </div>
+          )}
 
           {/* Owner actions */}
           {isOwner && (
@@ -336,6 +352,16 @@ export default function RideDetailPage() {
               myRequest.status === "rejected" ? "bg-red-100 text-red-700" :
               "bg-yellow-100 text-yellow-700"
             }`}>{myRequest.status}</span>
+
+            {myRequest.status === "accepted" && (myRequest.agreed_fare || ride.suggested_fare) && (
+              <div className="mt-4">
+                <UPIPaymentWidget
+                  upiId="pillionrider@upi"
+                  payeeName="Rider"
+                  amount={myRequest.agreed_fare ?? ride.suggested_fare ?? 0}
+                />
+              </div>
+            )}
 
             {myRequest.status === "pending" && (
               <div className="mt-3 flex gap-2 items-center">

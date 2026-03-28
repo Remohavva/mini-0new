@@ -99,3 +99,19 @@ class RideMessageResponse(BaseModel):
     sender_name: Optional[str] = None
     message: str
     created_at: datetime
+
+class SavedLocationCreate(BaseModel):
+    name: str
+    address: str
+    lat: float
+    lon: float
+
+class SavedLocationResponse(BaseModel):
+    id: str
+    user_id: str
+    name: str
+    address: str
+    lat: float
+    lon: float
+    created_at: datetime
+

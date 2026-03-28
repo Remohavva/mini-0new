@@ -51,6 +51,7 @@ def list_rides(
     origin: Optional[str] = Query(None),
     destination: Optional[str] = Query(None),
     status: Optional[str] = Query("open"),
+    match_suggestions: bool = Query(False),
     current_user=Depends(get_current_user),
 ):
     query = supabase.table("rides").select("*")
@@ -60,8 +61,62 @@ def list_rides(
         query = query.ilike("destination", f"%{destination}%")
     if status:
         query = query.eq("status", status)
+    
     res = query.order("departure_time").execute()
-    return res.data or []
+    rides = res.data or []
+
+    if match_suggestions and rides:
+        try:
+            # Feat 7: Fetch user's college/company
+            profile_res = supabase.table("profiles").select("college_or_company").eq("id", current_user["id"]).single().execute()
+            user_cc = profile_res.data.get("college_or_company", "") if profile_res.data else ""
+
+            # Fetch rider profiles for the current open rides
+            rider_ids = list({r["rider_id"] for r in rides})
+            riders_res = supabase.table("profiles").select("id, college_or_company").in_("id", rider_ids).execute()
+            rider_cc_map = {p["id"]: p.get("college_or_company", "") for p in (riders_res.data or [])}
+
+            # Feat 1: Fetch user's saved locations
+            saved_res = supabase.table("saved_locations").select("lat, lon").eq("user_id", current_user["id"]).execute()
+            saved_locs = saved_res.data or []
+
+            def score_ride(r):
+                score = 0
+                # Feature 7: Same Campus/Company
+                r_cc = rider_cc_map.get(r["rider_id"], "")
+                if user_cc and r_cc and user_cc.lower() == r_cc.lower():
+                    score += 50
+                
+                # Feature 1: People going your way based on saved locations
+                if saved_locs and r.get("origin_lat") and r.get("origin_lon"):
+                    for sl in saved_locs:
+                        if sl.get("lat") and sl.get("lon"):
+                            # origin match -> 20pts
+                            orig_lat = float(r.get("origin_lat", 0))
+                            orig_lon = float(r.get("origin_lon", 0))
+                            dist_orig = haversine_km(float(sl["lat"]), float(sl["lon"]), orig_lat, orig_lon)
+                            if dist_orig < 5:
+                                score += max(0, int(20 - dist_orig * 2))
+
+                if saved_locs and r.get("destination_lat") and r.get("destination_lon"):
+                    for sl in saved_locs:
+                        if sl.get("lat") and sl.get("lon"):
+                            # dest match -> 20pts
+                            dest_lat = float(r.get("destination_lat", 0))
+                            dest_lon = float(r.get("destination_lon", 0))
+                            dist_dest = haversine_km(float(sl["lat"]), float(sl["lon"]), dest_lat, dest_lon)
+                            if dist_dest < 5:
+                                score += max(0, int(20 - dist_dest * 2))
+
+                return score
+
+            # Sort primarily by score desc, secondarily by departure_time asc
+            rides.sort(key=lambda x: (-score_ride(x), x["departure_time"]))
+
+        except Exception as e:
+            pass # degrade gracefully to normal sorting if matching fails
+            
+    return rides
 
 @router.get("/my", response_model=list[RideResponse])
 def my_rides(current_user=Depends(get_current_user)):

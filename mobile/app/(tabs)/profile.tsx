@@ -7,11 +7,13 @@ import { apiFetch } from "@/lib/api";
 
 interface Profile { id: string; email: string; full_name: string; user_type: string; college_or_company: string; phone?: string; }
 interface Ride { id: string; origin: string; destination: string; departure_time: string; available_seats: number; status: string; suggested_fare?: number; }
+interface SavedLocation { id: string; name: string; address: string; lat: number; lon: number; }
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rides, setRides] = useState<Ride[]>([]);
+  const [locations, setLocations] = useState<SavedLocation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,6 +28,8 @@ export default function ProfileScreen() {
       } catch { setProfile(fallback); }
       const r = await apiFetch<Ride[]>("/rides/my").catch(() => []);
       setRides(r);
+      const locs = await apiFetch<SavedLocation[]>("/users/me/locations").catch(() => []);
+      setLocations(locs);
       setLoading(false);
     }
     load();
@@ -85,6 +89,24 @@ export default function ProfileScreen() {
           ))
         )}
 
+        {/* Saved Locations */}
+        <View style={{ marginTop: 24 }}>
+          <Text style={styles.sectionTitle}>Saved Locations</Text>
+          {locations.length === 0 ? (
+            <Text style={styles.empty}>No saved locations.</Text>
+          ) : (
+            locations.map((loc) => (
+              <View key={loc.id} style={styles.locCard}>
+                <View style={styles.locIcon}><Text>📌</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.locName}>{loc.name}</Text>
+                  <Text style={styles.locAddress}>{loc.address}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
         <TouchableOpacity style={styles.logoutBtn} onPress={() => Alert.alert("Logout", "Are you sure?", [{ text: "Cancel" }, { text: "Logout", style: "destructive", onPress: handleLogout }])}>
           <Text style={styles.logoutText}>🚪 Logout</Text>
         </TouchableOpacity>
@@ -118,6 +140,10 @@ const styles = StyleSheet.create({
   rideBadgeText: { color: "#16a34a", fontSize: 11, fontWeight: "700" },
   rideMeta: { fontSize: 12, color: "#6b7280" },
   rideFare: { fontSize: 13, color: "#16a34a", fontWeight: "600", marginTop: 4 },
+  locCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: "#f3f4f6" },
+  locIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#f0fdf4", justifyContent: "center", alignItems: "center", marginRight: 12 },
+  locName: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  locAddress: { fontSize: 12, color: "#6b7280", marginTop: 2 },
   logoutBtn: { marginTop: 24, borderWidth: 1, borderColor: "#fca5a5", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   logoutText: { color: "#ef4444", fontWeight: "600", fontSize: 15 },
 });
