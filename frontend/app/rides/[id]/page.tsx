@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import RideMapWrapper from "@/components/RideMapWrapper";
 import RatingStars from "@/components/RatingStars";
+import SOSButton from "@/components/SOSButton";
 import { geocode } from "@/lib/geocode";
 
 interface Ride {

@@ -7,6 +7,7 @@ import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import Link from "next/link";
 import RatingStars from "@/components/RatingStars";
+import SOSButton from "@/components/SOSButton";
 
 interface Profile {
   id: string;
@@ -37,6 +38,8 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [myRides, setMyRides] = useState<Ride[]>([]);
   const [avgRating, setAvgRating] = useState<{ avg_rating: number; total: number } | null>(null);
+  const [emergencyContact, setEmergencyContact] = useState({ name: "", phone: "" });
+  const [savingContact, setSavingContact] = useState(false);
   const [form, setForm] = useState({ full_name: "", phone: "", college_or_company: "", bike_model: "", bike_number: "" });
   const [editing, setEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -66,6 +69,7 @@ export default function ProfilePage() {
         setForm({ full_name: p.full_name, phone: p.phone ?? "", college_or_company: p.college_or_company, bike_model: p.bike_model ?? "", bike_number: p.bike_number ?? "" });
         apiFetch<Ride[]>("/rides/my").then(setMyRides).catch(() => {});
         apiFetch<{ avg_rating: number; total: number }>(`/ratings/user/${data.user.id}`).then(setAvgRating).catch(() => {});
+        apiFetch<{ name: string; phone: string } | null>("/emergency/contact").then((c) => { if (c) setEmergencyContact(c); }).catch(() => {});
         // Auto-fetch bike image if model set but no image yet
         if (p.bike_model && !p.bike_image_url) {
           apiFetch<{ image_url: string | null }>(`/bikes/save-image?model=${encodeURIComponent(p.bike_model)}`, { method: "POST" })
@@ -292,6 +296,33 @@ export default function ProfilePage() {
               ))}
             </div>
           )}
+        </div>
+        {/* Emergency Contact + SOS */}
+        <div className="bg-white rounded-2xl shadow p-6 mt-6 border border-red-100">
+          <h2 className="text-lg font-bold mb-4 text-red-600">🆘 Emergency Contact</h2>
+          <div className="space-y-3 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Contact Name</label>
+              <input value={emergencyContact.name} onChange={(e) => setEmergencyContact({ ...emergencyContact, name: e.target.value })}
+                placeholder="e.g. Mom, Dad, Friend"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Phone (with country code)</label>
+              <input value={emergencyContact.phone} onChange={(e) => setEmergencyContact({ ...emergencyContact, phone: e.target.value })}
+                placeholder="e.g. +919876543210"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+            </div>
+            <button disabled={savingContact} onClick={async () => {
+              setSavingContact(true);
+              await apiFetch("/emergency/contact", { method: "POST", body: JSON.stringify(emergencyContact) }).catch(() => {});
+              setSavingContact(false);
+              setMsg("Emergency contact saved.");
+            }} className="w-full bg-red-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition">
+              {savingContact ? "Saving..." : "Save Emergency Contact"}
+            </button>
+          </div>
+          <SOSButton />
         </div>
       </main>
     </div>
