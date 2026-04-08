@@ -89,7 +89,7 @@ export default function RidesPage() {
       const data = await apiFetch<Ride[]>(`/rides/my`).catch(() => []);
       setRides(data);
     } else {
-      const params = new URLSearchParams({ status: "open" });
+      const params = new URLSearchParams({ status: "open", match_suggestions: "true" });
       if (origin) params.set("origin", origin);
       if (destination) params.set("destination", destination);
       const data = await apiFetch<Ride[]>(`/rides/?${params}`).catch(() => []);
@@ -137,8 +137,14 @@ export default function RidesPage() {
         ) : rides.length === 0 ? (
           <p className="text-gray-500">No rides found.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {rides.map((ride) => (
+          <>
+            {tab === "all" && !origin && !destination && rides.length > 0 && (
+              <p className="text-sm text-green-700 font-semibold mb-4 bg-green-50 inline-block px-3 py-1 rounded-full border border-green-200">
+                ✨ Smart Matches (by Campus & Location)
+              </p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {rides.map((ride) => (
               <Link key={ride.id} href={`/rides/${ride.id}`}
                 className="block bg-white border rounded-xl overflow-hidden hover:border-green-400 hover:shadow-md transition">
                 <MiniRideMapWrapper key={`${ride.id}-map`} origin={ride.origin} destination={ride.destination} />
@@ -165,7 +171,8 @@ export default function RidesPage() {
                 </div>
               </Link>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </main>
     </div>

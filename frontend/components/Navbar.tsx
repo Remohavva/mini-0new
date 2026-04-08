@@ -22,47 +22,25 @@ const navLinks = [
   { href: "/dashboard", label: "Home", icon: "🏠" },
 ];
 
-export default function Navbar() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+function UserMenu({ profile, handleLogout }: { profile: Profile | null, handleLogout: () => void }) {
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) return;
-      apiFetch<Profile>("/users/me").then(setProfile).catch(() => {
-        const meta = data.user!.user_metadata;
-        setProfile({
-          full_name: meta?.full_name ?? "User",
-          email: data.user!.email ?? "",
-          user_type: meta?.user_type ?? "student",
-          college_or_company: meta?.college_or_company ?? "",
-          avatar_url: meta?.avatar_url ?? "",
-        });
-      });
-    });
-  }, []);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false);
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push("/");
-  }
+  const initials = profile?.full_name?.split(" ")?.map((n) => n[0])?.join("")?.toUpperCase()?.slice(0, 2) || "?";
 
-  const initials = profile?.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
-
-  const AvatarButton = () => (
+  return (
     <div className="relative" ref={dropdownRef}>
-      <button onClick={() => setOpen((v) => !v)} className="focus:outline-none" aria-label="User menu">
+      <button onClick={() => setOpen(!open)} className="focus:outline-none" aria-label="User menu">
         {profile?.avatar_url ? (
           <Image src={profile.avatar_url} alt="Avatar" width={36} height={36}
             className="w-9 h-9 rounded-full object-cover ring-2 ring-slate-200 hover:ring-blue-500 transition" />
@@ -87,7 +65,8 @@ export default function Navbar() {
           </div>
           <div className="px-4 py-2 border-b border-slate-200">
             <p className="text-xs text-slate-500">
-              {profile?.user_type === "student" ? "🎓 Student" : "💼 Corporate"} · {profile?.college_or_company}
+              {profile?.user_type === "student" ? "🎓 Student" : "💼 Corporate"}
+              {profile?.college_or_company ? ` · ${profile.college_or_company}` : ""}
             </p>
           </div>
           <div className="py-1">
@@ -103,7 +82,7 @@ export default function Navbar() {
               className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition">
               📊 Admin Dashboard
             </Link>
-            <button onClick={handleLogout}
+            <button onClick={() => { setOpen(false); handleLogout(); }}
               className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition">
               🚪 Logout
             </button>
@@ -112,6 +91,33 @@ export default function Navbar() {
       )}
     </div>
   );
+}
+
+export default function Navbar() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return;
+      apiFetch<Profile>("/users/me").then(setProfile).catch(() => {
+        const meta = data.user!.user_metadata;
+        setProfile({
+          full_name: meta?.full_name ?? "User",
+          email: data.user!.email ?? "",
+          user_type: meta?.user_type ?? "student",
+          college_or_company: meta?.college_or_company ?? "",
+          avatar_url: meta?.avatar_url ?? "",
+        });
+      });
+    });
+  }, []);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/");
+  }
 
   return (
     <>
@@ -128,7 +134,7 @@ export default function Navbar() {
             </Link>
           ))}
           <NotificationBell />
-          <AvatarButton />
+          <UserMenu profile={profile} handleLogout={handleLogout} />
         </div>
       </nav>
 
@@ -137,7 +143,7 @@ export default function Navbar() {
         <Link href="/dashboard" className="font-bold text-blue-600 text-lg">🏍️ Pillion</Link>
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <AvatarButton />
+          <UserMenu profile={profile} handleLogout={handleLogout} />
         </div>
       </nav>
 

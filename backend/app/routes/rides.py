@@ -198,7 +198,36 @@ def complete_ride(ride_id: str, current_user=Depends(get_current_user)):
     supabase.table("rides").update({"status": "completed", "completed_at": "now()"}).eq("id", ride_id).execute()
     # Notify accepted passengers
     accepted = supabase.table("ride_requests").select("requester_id").eq("ride_id", ride_id).eq("status", "accepted").execute()
-    for req in (accepted.data or []):
+    req_users = accepted.data or []
+    
+    # Innovative Feature: CO2 Emission Gamification
+    co2_offset = 0.0
+    if ride.data.get("origin_lat") and ride.data.get("destination_lat"):
+        dist_km = haversine_km(
+            ride.data["origin_lat"], ride.data["origin_lon"], 
+            ride.data["destination_lat"], ride.data["destination_lon"]
+        )
+        # Bike pooling saves ~0.1kg CO2 per km per passenger
+        co2_offset = round(dist_km * 0.1, 2)
+    
+    num_passengers = len(req_users)
+    if num_passengers > 0 and co2_offset > 0:
+        rider_prof = supabase.table("profiles").select("co2_saved_kg, completed_rides").eq("id", ride.data["rider_id"]).single().execute()
+        if rider_prof.data:
+            supabase.table("profiles").update({
+                "co2_saved_kg": round((rider_prof.data.get("co2_saved_kg") or 0.0) + (co2_offset * num_passengers), 2),
+                "completed_rides": (rider_prof.data.get("completed_rides") or 0) + 1
+            }).eq("id", ride.data["rider_id"]).execute()
+
+    for req in req_users:
+        if co2_offset > 0:
+            p_prof = supabase.table("profiles").select("co2_saved_kg, completed_rides").eq("id", req["requester_id"]).single().execute()
+            if p_prof.data:
+                supabase.table("profiles").update({
+                    "co2_saved_kg": round((p_prof.data.get("co2_saved_kg") or 0.0) + co2_offset, 2),
+                    "completed_rides": (p_prof.data.get("completed_rides") or 0) + 1
+                }).eq("id", req["requester_id"]).execute()
+        
         create_notification(
             user_id=req["requester_id"],
             type="ride_completed",

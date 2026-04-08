@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 
-interface Profile { id: string; email: string; full_name: string; user_type: string; college_or_company: string; phone?: string; }
+interface Profile { id: string; email: string; full_name: string; user_type: string; college_or_company: string; phone?: string; co2_saved_kg?: number; completed_rides?: number; }
 interface Ride { id: string; origin: string; destination: string; departure_time: string; available_seats: number; status: string; suggested_fare?: number; }
 interface SavedLocation { id: string; name: string; address: string; lat: number; lon: number; }
 
@@ -70,6 +70,23 @@ export default function ProfileScreen() {
           ))}
         </View>
 
+        {/* Eco Stats */}
+        <View style={styles.ecoCard}>
+          <Text style={styles.ecoTitle}>🌍 Eco-Warrior Status</Text>
+          <Text style={styles.ecoSub}>Thank you for making the world greener!</Text>
+          <View style={styles.ecoStats}>
+            <View style={styles.ecoStatItem}>
+              <Text style={styles.ecoStatVal}>{profile?.co2_saved_kg?.toFixed(1) || "0.0"}<Text style={styles.ecoStatUnit}>kg</Text></Text>
+              <Text style={styles.ecoStatLabel}>CO₂ PREVENTED</Text>
+            </View>
+            <View style={styles.ecoDivider} />
+            <View style={styles.ecoStatItem}>
+              <Text style={styles.ecoStatVal}>{profile?.completed_rides || 0}</Text>
+              <Text style={styles.ecoStatLabel}>SHARED RIDES</Text>
+            </View>
+          </View>
+        </View>
+
         {/* My Rides */}
         <Text style={styles.sectionTitle}>My Rides</Text>
         {rides.length === 0 ? (
@@ -130,6 +147,15 @@ const styles = StyleSheet.create({
   infoRowBorder: { borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
   infoIcon: { fontSize: 18 },
   infoVal: { fontSize: 14, color: "#374151", flex: 1 },
+  ecoCard: { backgroundColor: "#10b981", borderRadius: 16, padding: 20, marginBottom: 24, shadowColor: "#059669", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  ecoTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 4 },
+  ecoSub: { color: "#d1fae5", fontSize: 13, marginBottom: 16 },
+  ecoStats: { flexDirection: "row", alignItems: "center" },
+  ecoStatItem: { flex: 1 },
+  ecoStatVal: { color: "#fff", fontSize: 28, fontWeight: "900" },
+  ecoStatUnit: { fontSize: 16, fontWeight: "600", color: "#a7f3d0" },
+  ecoStatLabel: { color: "#ecfdf5", fontSize: 10, fontWeight: "700", marginTop: 2, letterSpacing: 1 },
+  ecoDivider: { width: 1, height: 30, backgroundColor: "#34d399", marginHorizontal: 16 },
   sectionTitle: { fontSize: 17, fontWeight: "700", color: "#111827", marginBottom: 12 },
   empty: { color: "#9ca3af", fontSize: 14, marginBottom: 20 },
   rideCard: { backgroundColor: "#fff", borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#f3f4f6" },

@@ -25,6 +25,10 @@ class UserProfile(BaseModel):
     bike_model: Optional[str] = None
     bike_number: Optional[str] = None
     bike_image_url: Optional[str] = None
+    co2_saved_kg: Optional[float] = 0.0
+    completed_rides: Optional[int] = 0
+    credits: Optional[int] = 0
+    referral_code: Optional[str] = None
 
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None

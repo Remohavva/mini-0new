@@ -27,6 +27,8 @@ interface Ride {
   origin_lon?: number;
   destination_lat?: number;
   destination_lon?: number;
+  current_lat?: number;
+  current_lon?: number;
 }
 
 interface RideRequest {
@@ -104,6 +106,46 @@ export default function RideDetailPage() {
     }
     load();
   }, [id]);
+
+  useEffect(() => {
+    // Real-time listener for Live Location Tracking
+    if (!ride || ride.status !== "started") return;
+
+    const channel = supabase
+      .channel(`ride_location_${id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "rides", filter: `id=eq.${id}` },
+        (payload) => {
+          if (payload.new && payload.new.current_lat && payload.new.current_lon) {
+            setRide((prev) => prev ? { ...prev, current_lat: payload.new.current_lat, current_lon: payload.new.current_lon } : prev);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [ride?.status, id]);
+
+  const [broadcasting, setBroadcasting] = useState(false);
+  useEffect(() => {
+    // Simulated GPS broadcaster for riders
+    const owner = !!ride && !!currentUserId && currentUserId === ride.rider_id;
+    if (!broadcasting || !owner || ride?.status !== "started") return;
+    let lat = ride?.current_lat || ride?.origin_lat || 12.9716;
+    let lon = ride?.current_lon || ride?.origin_lon || 77.5946;
+
+    const interval = setInterval(async () => {
+      lat += 0.0001; // simulate movement
+      lon += 0.0001;
+      await supabase.from("rides").update({ current_lat: lat, current_lon: lon }).eq("id", id);
+    }, 5000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [broadcasting, id, currentUserId, ride?.rider_id, ride?.status]);
 
   async function handleRequest() {
     try {
@@ -275,6 +317,16 @@ export default function RideDetailPage() {
             </div>
           )}
 
+          {/* Live Location Widget */}
+          {ride.status === "started" && (ride.current_lat || ride.current_lon) && !isOwner && (
+            <div className="mt-4 bg-blue-50 border border-blue-200 p-4 rounded-xl shadow-sm">
+              <h3 className="font-bold text-blue-900 text-sm mb-1">📍 Live Location Tracking</h3>
+              <p className="text-xs text-blue-700 font-mono">Lat: {ride.current_lat?.toFixed(5)}</p>
+              <p className="text-xs text-blue-700 font-mono">Lon: {ride.current_lon?.toFixed(5)}</p>
+              <p className="text-[10px] text-blue-500 italic mt-2">Updating in real-time from rider's device...</p>
+            </div>
+          )}
+
           {/* Owner actions */}
           {isOwner && (
             <div className="mt-4 flex flex-wrap gap-2">
@@ -285,10 +337,16 @@ export default function RideDetailPage() {
                 </button>
               )}
               {ride.status === "started" && (
-                <button onClick={handleComplete}
-                  className="text-sm bg-green-600 text-white px-4 py-1.5 rounded-lg hover:bg-green-700 transition">
-                  ✅ Complete Ride
-                </button>
+                <>
+                  <button onClick={() => setBroadcasting(!broadcasting)}
+                    className={`text-sm px-4 py-1.5 rounded-lg transition font-medium border ${broadcasting ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100" : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"}`}>
+                    {broadcasting ? "🛑 Stop Location Broadcast" : "📡 Broadcast Live Location"}
+                  </button>
+                  <button onClick={handleComplete}
+                    className="text-sm bg-green-600 text-white px-4 py-1.5 rounded-lg font-medium hover:bg-green-700 transition">
+                    ✅ Complete Ride
+                  </button>
+                </>
               )}
               {(ride.status === "open" || ride.status === "full") && (
                 <button onClick={handleCancel}

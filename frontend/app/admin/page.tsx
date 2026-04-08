@@ -3,12 +3,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Navbar from "@/components/Navbar";
 
+import { apiFetch } from "@/lib/api";
+
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
     totalRides: 0,
     activeUsers: 0,
     revenuePotential: 0,
     popularRoutes: [] as { route: string; count: number }[],
+    pendingVerifications: [] as any[],
   });
   const [loading, setLoading] = useState(true);
 
@@ -47,16 +50,35 @@ export default function AdminDashboardPage() {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
+      // 5. Pending Verifications
+      const { data: pendingUsers } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, license_url')
+        .eq('verification_status', 'pending');
+
       setStats({
         totalRides: ridesCount || 0,
         activeUsers: usersCount || 0,
         revenuePotential: revenue,
         popularRoutes,
+        pendingVerifications: pendingUsers || [],
       });
       setLoading(false);
     }
     fetchAdminData();
   }, []);
+
+  async function handleReview(userId: string, action: "approve" | "reject") {
+    try {
+      await apiFetch(`/verification/review/${userId}?action=${action}`, { method: "PATCH" });
+      setStats(prev => ({
+        ...prev,
+        pendingVerifications: prev.pendingVerifications.filter((u: any) => u.id !== userId)
+      }));
+    } catch (err) {
+      alert("Failed to review user");
+    }
+  }
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
 
@@ -129,6 +151,36 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Pending Verifications */}
+        <div className="mt-8 bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
+          <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">📄 Pending Verifications</h3>
+          <div className="space-y-4">
+            {stats.pendingVerifications.length > 0 ? stats.pendingVerifications.map((user, i) => (
+              <div key={i} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                <div className="mb-4 sm:mb-0">
+                  <p className="font-semibold text-gray-800">{user.full_name}</p>
+                  <p className="text-sm text-gray-500">{user.email}</p>
+                  {user.license_url && (
+                    <a href={user.license_url} target="_blank" rel="noreferrer" className="text-indigo-600 text-sm hover:underline mt-1 inline-block">
+                      View License Document
+                    </a>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleReview(user.id, 'approve')} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-700 transition">
+                    Approve
+                  </button>
+                  <button onClick={() => handleReview(user.id, 'reject')} className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-600 transition">
+                    Reject
+                  </button>
+                </div>
+              </div>
+            )) : (
+              <div className="text-gray-500 italic p-4 text-center">No pending verifications</div>
+            )}
           </div>
         </div>
       </main>

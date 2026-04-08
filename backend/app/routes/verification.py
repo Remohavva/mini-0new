@@ -24,10 +24,9 @@ def get_status(current_user=Depends(get_current_user)):
 # Admin-only: approve or reject
 @router.patch("/review/{user_id}")
 def review_verification(user_id: str, action: str, current_user=Depends(get_current_user)):
-    # Simple admin check — in production use a proper role system
-    admin_ids = ["your-admin-user-id"]  # replace with your Supabase user ID
-    if current_user["id"] not in admin_ids:
-        raise HTTPException(status_code=403, detail="Admin only")
+    # Simple admin check — allowing any email containing "admin" for testing/demo purposes
+    if "admin" not in str(current_user.get("email", "")).lower():
+        raise HTTPException(status_code=403, detail="Admin only. Log in with an email containing 'admin' like admin@pillion.com.")
     if action not in ("approve", "reject"):
         raise HTTPException(status_code=400, detail="Invalid action")
     update = {

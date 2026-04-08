@@ -23,6 +23,16 @@ interface Profile {
   bike_image_url?: string;
   referral_code?: string;
   credits?: number;
+  co2_saved_kg?: number;
+  completed_rides?: number;
+}
+
+interface SavedLocation {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lon: number;
 }
 
 interface Ride {
@@ -40,6 +50,9 @@ export default function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [myRides, setMyRides] = useState<Ride[]>([]);
+  const [locations, setLocations] = useState<SavedLocation[]>([]);
+  const [locForm, setLocForm] = useState({ name: "", address: "" });
+  const [addingLoc, setAddingLoc] = useState(false);
   const [avgRating, setAvgRating] = useState<{ avg_rating: number; total: number } | null>(null);
   const [emergencyContact, setEmergencyContact] = useState({ name: "", phone: "" });
   const [savingContact, setSavingContact] = useState(false);
@@ -73,15 +86,16 @@ export default function ProfilePage() {
         const p = await apiFetch<Profile>("/users/me");
         setProfile(p);
         setForm({ full_name: p.full_name, phone: p.phone ?? "", college_or_company: p.college_or_company, bike_model: p.bike_model ?? "", bike_number: p.bike_number ?? "" });
-        apiFetch<Ride[]>("/rides/my").then(setMyRides).catch(() => {});
-        apiFetch<{ avg_rating: number; total: number }>(`/ratings/user/${data.user.id}`).then(setAvgRating).catch(() => {});
-        apiFetch<{ name: string; phone: string } | null>("/emergency/contact").then((c) => { if (c) setEmergencyContact(c); }).catch(() => {});
-        apiFetch<{ verification_status: string }>("/verification/status").then((v) => setVerificationStatus(v.verification_status)).catch(() => {});
+        apiFetch<Ride[]>("/rides/my").then(setMyRides).catch(() => { });
+        apiFetch<{ avg_rating: number; total: number }>(`/ratings/user/${data.user.id}`).then(setAvgRating).catch(() => { });
+        apiFetch<{ name: string; phone: string } | null>("/emergency/contact").then((c) => { if (c) setEmergencyContact(c); }).catch(() => { });
+        apiFetch<{ verification_status: string }>("/verification/status").then((v) => setVerificationStatus(v.verification_status)).catch(() => { });
+        apiFetch<SavedLocation[]>("/users/me/locations").then(setLocations).catch(() => { });
         // Auto-fetch bike image if model set but no image yet
         if (p.bike_model && !p.bike_image_url) {
           apiFetch<{ image_url: string | null }>(`/bikes/save-image?model=${encodeURIComponent(p.bike_model)}`, { method: "POST" })
             .then((r) => { if (r.image_url) setProfile((prev) => prev ? { ...prev, bike_image_url: r.image_url! } : prev); })
-            .catch(() => {});
+            .catch(() => { });
         }
       } catch {
         setProfile(fallback);
@@ -119,7 +133,7 @@ export default function ProfilePage() {
     setMsg("License uploaded. Verification pending review.");
     setUploadingLicense(false);
   }
-  async function handleSave() {
+  const handleSave = async () => {
     setSaving(true);
     setMsg("");
     try {
@@ -134,12 +148,41 @@ export default function ProfilePage() {
       if (form.bike_model && form.bike_model !== profile?.bike_model) {
         apiFetch<{ image_url: string | null }>(`/bikes/save-image?model=${encodeURIComponent(form.bike_model)}`, { method: "POST" })
           .then((r) => { if (r.image_url) setProfile((prev) => prev ? { ...prev, bike_image_url: r.image_url! } : prev); })
-          .catch(() => {});
+          .catch(() => { });
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       setMsg(err instanceof Error ? err.message : "Update failed");
     }
     setSaving(false);
+  };
+
+  async function handleAddLocation() {
+    if (!locForm.name.trim() || !locForm.address.trim()) return;
+    setAddingLoc(true);
+    try {
+      // Create a dummy lat/lon for now or fetch via geocode logic here. Using dummy lat/lon for simplicity:
+      const payload = { ...locForm, lat: 12.9716, lon: 77.5946 };
+      const newLoc = await apiFetch<SavedLocation>("/users/me/locations", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      setLocations([...locations, newLoc]);
+      setLocForm({ name: "", address: "" });
+      setMsg("Location saved.");
+    } catch {
+      setMsg("Failed to save location.");
+    }
+    setAddingLoc(false);
+  }
+
+  async function handleDeleteLocation(id: string) {
+    try {
+      await apiFetch(`/users/me/locations/${id}`, { method: "DELETE" });
+      setLocations(locations.filter(l => l.id !== id));
+      setMsg("Location deleted.");
+    } catch {
+      setMsg("Failed to delete location.");
+    }
   }
 
   if (!profile) return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
@@ -194,9 +237,8 @@ export default function ProfilePage() {
                     <span className="text-sm text-gray-500">{avgRating.avg_rating} ({avgRating.total})</span>
                   </div>
                 )}
-                <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                  profile.user_type === "student" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-                }`}>
+                <span className={`text-xs px-3 py-1 rounded-full font-medium ${profile.user_type === "student" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                  }`}>
                   {profile.user_type === "student" ? "🎓 Student" : "💼 Corporate"}
                 </span>
               </div>
@@ -283,6 +325,29 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Eco & Gamification Stats */}
+        <div className="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl shadow-lg p-6 mt-6 text-white flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              🌍 Eco-Warrior Status
+            </h2>
+            <p className="text-emerald-100 text-sm mt-1">Thank you for making the world greener!</p>
+            <div className="flex gap-6 mt-4">
+              <div>
+                <p className="text-3xl font-black">{profile.co2_saved_kg?.toFixed(1) || "0.0"}<span className="text-lg font-semibold text-emerald-200 ml-1">kg</span></p>
+                <p className="text-xs text-emerald-100 uppercase tracking-widest font-semibold">CO₂ Prevented</p>
+              </div>
+              <div className="border-l border-emerald-400 pl-6">
+                <p className="text-3xl font-black">{profile.completed_rides || 0}</p>
+                <p className="text-xs text-emerald-100 uppercase tracking-widest font-semibold">Shared Rides</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-6xl hidden sm:block opacity-80">
+            🌱
+          </div>
+        </div>
+
         {/* My Rides */}
         <div className="bg-white rounded-2xl shadow p-8 mt-6">
           <div className="flex items-center justify-between mb-4">
@@ -305,17 +370,57 @@ export default function ProfilePage() {
                     </p>
                     {ride.bike_model && <p className="text-xs text-gray-400 mt-0.5">🏍️ {ride.bike_model}</p>}
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ml-3 ${
-                    ride.status === "open" ? "bg-green-100 text-green-700" :
-                    ride.status === "full" ? "bg-yellow-100 text-yellow-700" :
-                    "bg-gray-100 text-gray-500"
-                  }`}>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ml-3 ${ride.status === "open" ? "bg-green-100 text-green-700" :
+                      ride.status === "full" ? "bg-yellow-100 text-yellow-700" :
+                        "bg-gray-100 text-gray-500"
+                    }`}>
                     {ride.status}
                   </span>
                 </Link>
               ))}
             </div>
           )}
+        </div>
+
+        {/* Saved Locations */}
+        <div className="bg-white rounded-2xl shadow p-8 mt-6">
+          <h2 className="text-lg font-bold mb-4">Saved Locations</h2>
+          {locations.length === 0 ? (
+            <p className="text-gray-400 text-sm mb-4">You haven&apos;t saved any locations yet.</p>
+          ) : (
+            <div className="space-y-3 mb-6">
+              {locations.map((loc) => (
+                <div key={loc.id} className="flex justify-between items-center border rounded-xl p-4 hover:border-blue-300 transition">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">📌</span>
+                    <div>
+                      <p className="font-medium text-sm text-gray-900">{loc.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{loc.address}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDeleteLocation(loc.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition">
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold mb-3">Add New Location</h3>
+            <div className="space-y-3">
+              <input value={locForm.name} onChange={(e) => setLocForm({ ...locForm, name: e.target.value })}
+                placeholder="Name (e.g. Home, Office)"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <input value={locForm.address} onChange={(e) => setLocForm({ ...locForm, address: e.target.value })}
+                placeholder="Full Address"
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <button disabled={addingLoc} onClick={handleAddLocation}
+                className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition">
+                {addingLoc ? "Saving..." : "+ Save Location"}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Referrals & Credits */}
@@ -336,7 +441,7 @@ export default function ProfilePage() {
               <p className="text-xs text-gray-500 mb-1 font-medium">Your Invite Code</p>
               <div className="bg-gray-100 flex items-center justify-between rounded-lg px-3 py-2 font-mono text-lg font-bold tracking-widest text-indigo-800">
                 {profile.referral_code || "Pillion" + profile.id.substring(0, 4).toUpperCase()}
-                <button 
+                <button
                   onClick={() => navigator.clipboard.writeText(profile.referral_code || "Pillion" + profile.id.substring(0, 4).toUpperCase())}
                   className="text-sm bg-white border border-gray-200 px-3 py-1 rounded shadow-sm text-gray-600 hover:text-indigo-600 transition"
                 >
@@ -392,7 +497,7 @@ export default function ProfilePage() {
             </div>
             <button disabled={savingContact} onClick={async () => {
               setSavingContact(true);
-              await apiFetch("/emergency/contact", { method: "POST", body: JSON.stringify(emergencyContact) }).catch(() => {});
+              await apiFetch("/emergency/contact", { method: "POST", body: JSON.stringify(emergencyContact) }).catch(() => { });
               setSavingContact(false);
               setMsg("Emergency contact saved.");
             }} className="w-full bg-red-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition">
