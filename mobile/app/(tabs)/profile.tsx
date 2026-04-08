@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { apiFetch } from "@/lib/api";
 
-interface Profile { id: string; email: string; full_name: string; user_type: string; college_or_company: string; phone?: string; co2_saved_kg?: number; completed_rides?: number; }
+interface Profile { id: string; email: string; full_name: string; user_type: string; college_or_company: string; phone?: string; co2_saved_kg?: number; completed_rides?: number; referral_code?: string; credits?: number; }
 interface Ride { id: string; origin: string; destination: string; departure_time: string; available_seats: number; status: string; suggested_fare?: number; }
 interface SavedLocation { id: string; name: string; address: string; lat: number; lon: number; }
 
@@ -14,6 +14,9 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rides, setRides] = useState<Ride[]>([]);
   const [locations, setLocations] = useState<SavedLocation[]>([]);
+  const [verificationStatus, setVerificationStatus] = useState<string>("unverified");
+  const [emergencyContact, setEmergencyContact] = useState({ name: "", phone: "" });
+  const [savingContact, setSavingContact] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,6 +33,8 @@ export default function ProfileScreen() {
       setRides(r);
       const locs = await apiFetch<SavedLocation[]>("/users/me/locations").catch(() => []);
       setLocations(locs);
+      apiFetch<{ name: string; phone: string }>("/emergency/contact").then((c) => c && setEmergencyContact(c)).catch(() => {});
+      apiFetch<{ verification_status: string }>("/verification/status").then((v) => v && setVerificationStatus(v.verification_status)).catch(() => {});
       setLoading(false);
     }
     load();
@@ -124,6 +129,55 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Referrals & Credits */}
+        <View style={styles.inviteCard}>
+          <Text style={styles.inviteTitle}>🎁 Invite & Earn</Text>
+          <Text style={styles.inviteSubTitle}>Invite friends, get ₹50 credits!</Text>
+          <View style={styles.inviteDetail}>
+            <Text style={styles.inviteCode}>Code: {profile?.referral_code || "PILLION" + profile?.id?.substring(0,4)?.toUpperCase()}</Text>
+            <Text style={styles.inviteCredits}>Credits: ₹{profile?.credits || 0}</Text>
+          </View>
+        </View>
+
+        {/* Rider Verification */}
+        <View style={styles.verificationCard}>
+          <Text style={styles.sectionTitle}>Rider Verification</Text>
+          {verificationStatus === "unverified" || verificationStatus === "rejected" ? (
+            <TouchableOpacity style={styles.uploadBtn} onPress={() => Alert.alert("Upload License", "File upload available on Web presently. Please use pc to upload.")}>
+              <Text style={styles.uploadText}>📄 Upload Driving License</Text>
+            </TouchableOpacity>
+          ) : verificationStatus === "pending" ? (
+            <Text style={styles.statusYellow}>Your license is under review ⏳</Text>
+          ) : (
+            <Text style={styles.statusGreen}>Identity Verified ✅</Text>
+          )}
+        </View>
+
+        {/* Emergency Contact */}
+        <View style={styles.emergencyCard}>
+          <Text style={[styles.sectionTitle, { color: "#dc2626" }]}>🆘 Emergency Contact</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Contact Name"
+            value={emergencyContact.name}
+            onChangeText={(t) => setEmergencyContact({ ...emergencyContact, name: t })}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Phone (e.g. +91 987...)"
+            value={emergencyContact.phone}
+            onChangeText={(t) => setEmergencyContact({ ...emergencyContact, phone: t })}
+          />
+          <TouchableOpacity style={styles.saveBtn} disabled={savingContact} onPress={async () => {
+            setSavingContact(true);
+            await apiFetch("/emergency/contact", { method: "POST", body: JSON.stringify(emergencyContact) }).catch(() => {});
+            setSavingContact(false);
+            Alert.alert("Success", "Emergency contact saved.");
+          }}>
+            <Text style={styles.saveBtnText}>{savingContact ? "Saving..." : "Save Contact"}</Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={styles.logoutBtn} onPress={() => Alert.alert("Logout", "Are you sure?", [{ text: "Cancel" }, { text: "Logout", style: "destructive", onPress: handleLogout }])}>
           <Text style={styles.logoutText}>🚪 Logout</Text>
         </TouchableOpacity>
@@ -172,4 +226,19 @@ const styles = StyleSheet.create({
   locAddress: { fontSize: 12, color: "#6b7280", marginTop: 2 },
   logoutBtn: { marginTop: 24, borderWidth: 1, borderColor: "#fca5a5", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   logoutText: { color: "#ef4444", fontWeight: "600", fontSize: 15 },
+  inviteCard: { backgroundColor: "#eef2ff", borderRadius: 14, padding: 16, marginTop: 10, borderColor: "#c7d2fe", borderWidth: 1 },
+  inviteTitle: { color: "#3730a3", fontSize: 16, fontWeight: "800" },
+  inviteSubTitle: { color: "#4f46e5", fontSize: 13, marginBottom: 8 },
+  inviteDetail: { flexDirection: "row", justifyContent: "space-between", backgroundColor: "#fff", padding: 10, borderRadius: 8 },
+  inviteCode: { color: "#3730a3", fontWeight: "700" },
+  inviteCredits: { color: "#10b981", fontWeight: "700" },
+  verificationCard: { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginTop: 20, borderColor: "#f3f4f6", borderWidth: 1 },
+  uploadBtn: { borderWidth: 1, borderColor: "#93c5fd", borderStyle: "dashed", borderRadius: 12, paddingVertical: 14, alignItems: "center", backgroundColor: "#eff6ff" },
+  uploadText: { color: "#2563eb", fontWeight: "600" },
+  statusYellow: { color: "#d97706", fontWeight: "600" },
+  statusGreen: { color: "#16a34a", fontWeight: "600" },
+  emergencyCard: { backgroundColor: "#fef2f2", borderRadius: 14, padding: 16, marginTop: 20, borderColor: "#fee2e2", borderWidth: 1 },
+  input: { backgroundColor: "#fff", borderColor: "#fca5a5", borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 10, fontSize: 14 },
+  saveBtn: { backgroundColor: "#dc2626", borderRadius: 8, padding: 12, alignItems: "center" },
+  saveBtnText: { color: "#fff", fontWeight: "700" }
 });
